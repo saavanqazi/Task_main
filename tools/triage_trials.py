@@ -20,23 +20,39 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def solve(inputs, last_wins=False, first_wins=False, row_per_edit=False, no_floor=False,
-          floor_takes_no_line=False, deferred_counts=False, exclusive_end=False, geometry_first=False):
-    """The same one-switch solver as tests/discrimination.py (kept standalone: no engine import)."""
+def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
+          deferred_counts=False, exclusive_end=False, geometry_first=False):
+    """One solver, one switch per wrong reading.
+
+    select: which register lines decide a passage's edits
+      latest         each edit stands as its latest line; every such edit counts (the gold)
+      every_line     every line is an edit in its own right (re-logged edits counted again)
+      first_line     each edit stands as its FIRST line (the first-read state)
+      passage_last   one line per passage: the passage's last line wins (a passage_id dict)
+      passage_first  one line per passage: its first line wins
+      row_per_edit   latest line per edit, but one register row per edit (a left join)
+    any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
+    """
     ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
     register = list(csv.DictReader(io.open(inputs / "edit_register.csv", encoding="utf-8")))
+    if select == "every_line":
+        chosen = register
+    elif select == "first_line":
+        chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
+    elif select == "passage_last":
+        chosen = list({e["passage_id"]: e for e in register}.values())
+    elif select == "passage_first":
+        chosen = list({e["passage_id"]: e for e in reversed(register)}.values())
+    else:
+        chosen = list({e["edit_code"]: e for e in register}.values())
     edits = {}
-    for e in register:
-        if last_wins:
-            edits[e["passage_id"]] = [e]
-        elif first_wins:
-            edits.setdefault(e["passage_id"], [e])
-        else:
-            edits.setdefault(e["passage_id"], []).append(e)
-    units = []
+    for e in chosen:
+        edits.setdefault(e["passage_id"], []).append(e)
+    ever_deferred = {e["passage_id"] for e in register if e["edit_state"] == "DEFERRED"}
+    units = []  # (passage_id, drafted, [edits]) -- one per ledger line, or one per joined edit
     for p in ledger:
         mine = edits.get(p["passage_id"], [])
-        if row_per_edit and len(mine) > 1:
+        if select == "row_per_edit" and len(mine) > 1:
             units += [(p["passage_id"], int(p["drafted_lines"]), [e]) for e in mine]
         else:
             units.append((p["passage_id"], int(p["drafted_lines"]), mine))
@@ -54,7 +70,7 @@ def solve(inputs, last_wins=False, first_wins=False, row_per_edit=False, no_floo
         first = line
         last_page = (first - 1 + length) // 30 + 1 if exclusive_end else page(first + length - 1)
         geo = "S" if page(first) != last_page else "W"
-        deferred = any(e["edit_state"] == "DEFERRED" for e in mine)
+        deferred = any(e["edit_state"] == "DEFERRED" for e in mine) or (any_deferred and pid in ever_deferred)
         v = "F" if floored else (("S" if geo == "S" else ("D" if deferred else "W")) if geometry_first
                                  else ("D" if deferred else geo))
         counts[v] += 1
@@ -68,14 +84,17 @@ def solve(inputs, last_wins=False, first_wins=False, row_per_edit=False, no_floo
 
 READINGS = {
     "GOLD": {},
-    "W1 last edit wins (dict overwrite)": dict(last_wins=True),
-    "W2 first edit wins": dict(first_wins=True),
-    "W3 one row per edit": dict(row_per_edit=True),
-    "W4 no floor": dict(no_floor=True),
-    "W5 floor line not counted": dict(floor_takes_no_line=True),
-    "W6 deferred counted": dict(deferred_counts=True),
-    "W7 last line one past": dict(exclusive_end=True),
-    "W8 geometry above deferred": dict(geometry_first=True),
+    "W1 every line counts": dict(select="every_line"),
+    "W2 first line per edit": dict(select="first_line"),
+    "W3 last line per passage (dict)": dict(select="passage_last"),
+    "W4 first line per passage": dict(select="passage_first"),
+    "W5 one row per edit": dict(select="row_per_edit"),
+    "W6 any DEFERRED line = deferred": dict(any_deferred=True),
+    "W7 no floor": dict(no_floor=True),
+    "W8 floor line not counted": dict(floor_takes_no_line=True),
+    "W9 deferred counted": dict(deferred_counts=True),
+    "W10 last line one past": dict(exclusive_end=True),
+    "W11 geometry above deferred": dict(geometry_first=True),
 }
 
 

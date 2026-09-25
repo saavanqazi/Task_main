@@ -3,13 +3,13 @@ artifacts = ["/app/page_register.csv", "/app/results.json"]
 
 [task]
 name = "obi/writing-b52-a9-manuscript-page-ledger-recompute"
-description = "Re-paginate a manuscript's flagged passages after an edit round: sum every accepted edit per passage, hold any passage its cuts would erase at one line, and record the page each passage starts on and how it sits there"
+description = "Re-paginate a manuscript's flagged passages after two edit reads: read each edit's current call from a running edit log, sum every accepted edit per passage, hold any passage its cuts would erase at one line, and record the page each passage starts on and how it sits there"
 authors = []
 keywords = ["harbor", "b52", "writing", "non-connector", "offline", "ledger_recomputation"]
 
 [metadata]
 source_config = "infra/task-harness/configs/shannon-200/task_writing_b52_a9_manuscript_page_ledger_recompute"
-reward_shape = "core-gated weighted fraction over 6 equally weighted checks: any failed core check scores 0; otherwise the passing checks' weight; 1.0 only when every check passes. Five core checks decide whether the page register and the five figures are right: register_header, register_trap_ps04, register_trap_ps07, register_rows and results_figures. One incidental check, results_keyset, costs its weight share when missed rather than zeroing substantively correct work, and a strict pass requires it too."
+reward_shape = "core-gated weighted fraction over 7 equally weighted checks: any failed core check scores 0; otherwise the passing checks' weight; 1.0 only when every check passes. Six core checks decide whether the page register and the five figures are right: register_header, register_trap_ps04, register_trap_ps07, register_trap_ps10, register_rows and results_figures. One incidental check, results_keyset, costs its weight share when missed rather than zeroing substantively correct work, and a strict pass requires it too."
 
 [verifier]
 timeout_sec = 600.0

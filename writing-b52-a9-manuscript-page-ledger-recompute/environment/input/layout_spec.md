@@ -10,13 +10,19 @@ ledger lists them, the first passage beginning on the first line of the manuscri
 each passage beginning on the line after the one before it ends. A passage's page is the
 page its first line falls on.
 
+## How the edit register is kept
+
+`edit_register.csv` is a log, one line per entry, in the order the entries were made. An
+edit gets a line when it is proposed and another whenever the call on it is revisited,
+so one edit can have several lines under its `edit_code`. An edit stands as its latest
+line records it: that line's `line_change` and `edit_state` are the edit's.
+
 ## How long a passage is
 
 A passage's length is its drafted lines plus the line change of every accepted edit
-proposed for it. `edit_register.csv` names the passage each edit was proposed for and
-says whether the edit was accepted. A deferred edit changes nothing: the lines it would
-add or remove are not counted, and the passage is recorded as carrying a deferred edit.
-A passage with no accepted edit keeps its drafted length.
+proposed for it. A deferred edit changes nothing: the lines it would add or remove are
+not counted, and the passage is recorded as carrying a deferred edit. A passage with no
+accepted edit keeps its drafted length.
 
 A passage never falls below 1 line. Where its accepted edits would take it under that,
 the passage is held at 1 line and recorded as floored. The lines the floor holds back

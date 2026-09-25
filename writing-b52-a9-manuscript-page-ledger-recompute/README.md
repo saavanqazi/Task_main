@@ -11,32 +11,35 @@ described in words only.
 ## 1. Task description
 
 An author has to hand a manuscript back to the press with a page number against every passage they flagged,
-after an edit round. The agent gets four files: the passage ledger (12 flagged passages, in manuscript order,
-with drafted line counts), the edit register (9 edits, each naming the passage it was proposed for, its line
-change, whether it was ACCEPTED or DEFERRED and a one-line description), the press's layout spec, and the
-submission format. It delivers the page register as a CSV (one row per passage: the page the passage now
-starts on and how it sits there) and five roll-up figures in `results.json`.
+after two edit reads. The agent gets four files: the passage ledger (12 flagged passages, in manuscript order,
+with drafted line counts), the edit register (a running log of 12 entries over 9 edits: date, edit code,
+passage, line change, ACCEPTED or DEFERRED, description), the press's layout spec, and the submission format.
+It delivers the page register as a CSV (one row per passage: the page the passage now starts on and how it
+sits there) and five roll-up figures in `results.json`.
 
-The work is real repagination bookkeeping: 30 lines a page, passages back to back in ledger order, a
-passage's length is its drafted lines plus the line change of **every accepted edit proposed for it**, a
-deferred edit changes nothing, a passage is never shorter than 1 line (and the held line still pushes every
-later passage down), and each passage is recorded as floored, carrying a deferred edit, crossing a break or
-sitting wholly on a page, in that priority.
+The work is real repagination bookkeeping: 30 lines a page, passages back to back in ledger order; the
+register is a log in which an edit stands as its **latest** line records it; a passage's length is its
+drafted lines plus the line change of **every** accepted edit proposed for it; a deferred edit changes
+nothing; a passage is never shorter than 1 line (and the held line still pushes every later passage down);
+and each passage is recorded as floored, carrying a deferred edit, crossing a break or sitting wholly on a
+page, in that priority.
 
 **The population is not handed over.** The instruction names no count, page or passage; it names the four
 treatments only by pointing at the layout rules.
 
-**Why it is hard.** The edit register is keyed by edit, not by passage, and PS-07 carries two accepted
-edits: ED-05 (−21, "Cut the harbour flashback") in register order, and ED-09 (−5, "Drop the second foghorn
-paragraph") on the register's last line. Together they take PS-07's 25 drafted lines to −1, so it floors at
-1 line. The definition is in the spec ("the line change of every accepted edit proposed for it"); no
-sentence describes PS-07 or says a passage may carry two edits. The natural join (a `passage_id → edit`
-dict) silently keeps only ED-09: PS-07 becomes 20 lines, and five later rows and four of the five figures
-move. The requester's one true sentence about the register ("the edits from the second read are the ones at
-the bottom") invites that last-wins reading without supporting it. A second, independent rule check is
-PS-04, whose only edit cuts exactly its 22 drafted lines. The mined instruction told the agent about this
-case ("do not let that passage vanish"). That sentence is gone, so the agent has to apply the floor rule
-itself.
+**Why it is hard.** The register has to be aggregated at two levels in opposite directions. Lines of one
+edit collapse to the latest (the second read revisited three first-read calls), while edits of one passage
+add up. Each of the three revisited edits flips an answer:
+- **ED-03** is PS-04's cut of exactly its 22 lines. It was ACCEPTED on the first read and DEFERRED on the
+  second, so PS-04 keeps 22 lines and is recorded as deferred. This is the case the mined task was built
+  around, so a reader who floors it on sight fails.
+- **ED-07** (+14 on PS-10) was DEFERRED, then ACCEPTED. PS-10 runs 22 lines across the page 4/5 break.
+- **ED-01** (PS-01) was revised from +4 to +6.
+
+Meanwhile **PS-07** carries two distinct edits: ED-05 (−21, first read) and ED-09 (−5, second read). Together
+they take its 25 lines below zero, so it floors at 1. The rules define the data, not a method. The requester's
+one lead is literally true and pulls toward counting every line: "Nothing has been struck from it; every line
+in it is a call one of us made."
 
 ## 2. Departures from the mined version
 
@@ -47,14 +50,14 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 | file | was | now | why |
 |---|---|---|---|
-| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the register described as it is ("each edit, the passage it was proposed for, …; the edits from the second read are the ones at the bottom"); the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3) |
-| `environment/input/passage_ledger.csv` | `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none); PS-11 20 lines | `passage_id,drafted_lines`; PS-11 24 lines | the ledger no longer does the join; PS-11 now ends on line 120, the last line of page 4, which separates an off-by-one last-line reading (W7) |
-| `environment/input/edit_register.csv` | `edit_code,line_change,edit_state`; 8 edits, one per passage | `edit_code,passage_id,line_change,edit_state,description`; 9 edits; PS-07 carries ED-05 (−21) and ED-09 (−5, last line); ED-07 (DEFERRED) +9 → +14 | the crux (§5); descriptions make the two PS-07 edits visibly distinct cuts (fairness), and ED-07's size separates W6 from W7 without touching the gold |
-| `environment/input/layout_spec.md` | "plus the line change of the edit proposed for it"; "A passage whose edit was deferred"; "Where an accepted edit would take it under that" | "plus the line change of every accepted edit proposed for it"; "`edit_register.csv` names the passage each edit was proposed for"; "A passage with a deferred edit"; "Where its accepted edits would take it under that" | the unit is stated as a definition where the rules live (FIX-2); the singular wording implied one edit per passage |
+| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the register described as "the edit register we kept through both reads" with the lead "Nothing has been struck from it; every line in it is a call one of us made."; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the lead is literally true (no line was deleted; each records a call) |
+| `environment/input/passage_ledger.csv` | `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none); PS-11 20 lines | `passage_id,drafted_lines`; PS-11 17 lines | the ledger no longer does the join; PS-11 now ends on line 150, the last line of page 5, which separates an off-by-one last-line reading |
+| `environment/input/edit_register.csv` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | `logged_on,edit_code,passage_id,line_change,edit_state,description`; a dated log of 12 lines over 9 edits: 8 first-read lines, then 4 second-read lines (ED-01 revised +4 → +6; ED-03 ACCEPTED → DEFERRED; ED-07 DEFERRED → ACCEPTED; ED-09 new, a second edit on PS-07) | the crux (§5); a re-logged line repeats the edit's description, as a log would |
+| `environment/input/layout_spec.md` | "plus the line change of the edit proposed for it"; "A passage whose edit was deferred"; "Where an accepted edit would take it under that" | new section "How the edit register is kept" ("a log … one edit can have several lines under its `edit_code`. An edit stands as its latest line records it"); "plus the line change of every accepted edit proposed for it"; "A passage with a deferred edit"; "Where its accepted edits would take it under that" | the unit stated as definitions where the rules live (FIX-2); the singular wording implied one edit per passage and one line per edit |
 | `environment/input/submission_format.md` | "One row per record, keyed by `passage_id`" and "in the order the file lists them" (order ungraded); a thousands-separator / currency clause for page numbers | "One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form"; "`page_number` … a plain whole number" | P6 over-specification: order was demanded but never graded; the currency clause did not fit page numbers |
 | `environment/Dockerfile` | `python:3.12-slim-bookworm` unpinned | pinned by digest `@sha256:4766d8…58a2` (same base as the accepted Task_17 bundle) | ENV-3 |
 | `task.toml` | `artifacts = []`, no reward shape | two artifact paths; `reward_shape`; description rewritten | TOML-4/5, HAR-2, PKG-14 |
-| `tests/verifier.json` | 22 checks, all core: `register_exists`, `results_exists`, `register_row_count`, `ps01_pin`…`ps12_pin` (regex, ungraded order), core `results_keyset`, five `result_*` figures | 6 checks (5 core, 1 incidental), §3; every pin read from the gold files by `tools/build_verifier.py`; every `why_justification` quotes its sentence verbatim | P0 #1, VER-21, DIS-2, GLD-11 |
+| `tests/verifier.json` | 22 checks, all core: `register_exists`, `results_exists`, `register_row_count`, `ps01_pin`…`ps12_pin` (regex, ungraded order), core `results_keyset`, five `result_*` figures | 7 checks (6 core, 1 incidental), §3; every pin read from the gold files by `tools/build_verifier.py`; every `why_justification` quotes its sentence verbatim | P0 #1, VER-21, DIS-2, GLD-11 |
 | `tests/rl_world_verifiers/` | the b52 engine (no `table_equals` / `object_equals`) | the engine vendored in the accepted Task_17 bundle (compound comparators, equivalence contract) | the row and figure checks need `table_equals` / `object_equals` |
 | `tests/test.sh`, `score.py`, `test_outputs.py` | pytest + a score over all checks; no guards | the accepted Task_17 harness with this task's deliverables: symlink/size guard and snapshot, controlled interpreter, input-integrity evidence, core gate + weighted fraction, output-truncation guard | HAR-1..11, VER-25, ENV-5 |
 | `tests/` (new) | none | `check_inputs.py`, `input_hashes.json`, `derive_gold.py`, `discrimination.py` (author tools, not on the reward path) | FIX-11, GLD-11, VER-24 |
@@ -64,13 +67,14 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 ## 3. Declarations
 
-- **Reward shape:** core-gated weighted fraction over 6 equally weighted checks (as `task.toml`
+- **Reward shape:** core-gated weighted fraction over 7 equally weighted checks (as `task.toml`
   `reward_shape` and `tests/score.py`): any failed core check scores 0; otherwise the passing weight; 1.0
   only when every check passes.
 - **Checks by kind:**
-  - core, deterministic (5): `register_header`; `register_trap_ps04` (the exact-length cut);
-    `register_trap_ps07` (the two-edit passage); `register_rows` (the other 10 passages cell by cell, row set
-    locked to the 12 ledger ids, columns closed); `results_figures` (five figures, key set open).
+  - core, deterministic (6): `register_header`; `register_trap_ps04` (the exact-length cut deferred on the
+    second read); `register_trap_ps07` (the two-edit passage); `register_trap_ps10` (the deferral accepted
+    on the second read); `register_rows` (the other 9 passages cell by cell, row set locked to the 12 ledger
+    ids, columns closed); `results_figures` (five figures, key set open).
   - incidental, deterministic (1): `results_keyset` (no extra keys).
 - **No judge.** Every graded value is a number or a closed label; there is no prose deliverable.
 - **Network mode:** `public`, as mined (the agent harness reaches its model through it). The verifier
@@ -83,73 +87,80 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
   gold: **gold agrees with the inputs, and every verifier pin agrees with the gold**. It also asserts the
   fixture's design invariants: one passage with two edits, the second on the register's last line; a single
   cut as long as its passage; a passage ending on a page's last line.
-- Key: 12 passages; the manuscript runs to line 133; `straddling_passage_count` 2, `deferred_edit_count` 2,
-  `length_floored_count` 2, `wholly_on_page_count` 6, `final_page_count` 5.
+- Key: 12 passages; the manuscript runs to line 163; `straddling_passage_count` 3, `deferred_edit_count` 2,
+  `length_floored_count` 1, `wholly_on_page_count` 6, `final_page_count` 6.
 
-| passage | drafted | accepted edits | lines | page | verdict |
+| passage | drafted | edits as they stand (latest line) | lines | page | verdict |
 |---|---|---|---|---|---|
-| PS-01 | 12 | ED-01 +4 | 1-16 | 1 | WHOLLY_ON_PAGE |
-| PS-02 | 18 | none | 17-34 | 1 | STRADDLES_BREAK |
-| PS-03 | 9 | ED-02 −3 | 35-40 | 2 | WHOLLY_ON_PAGE |
-| PS-04 | 22 | ED-03 −22 → 0, held at 1 | 41 | 2 | LENGTH_FLOORED |
-| PS-05 | 14 | none | 42-55 | 2 | WHOLLY_ON_PAGE |
-| PS-06 | 7 | none (ED-04 +6 deferred) | 56-62 | 2 | EDIT_DEFERRED |
-| PS-07 | 25 | ED-05 −21, ED-09 −5 → −1, held at 1 | 63 | 3 | LENGTH_FLOORED |
-| PS-08 | 11 | ED-06 +2 | 64-76 | 3 | WHOLLY_ON_PAGE |
-| PS-09 | 16 | none | 77-92 | 3 | STRADDLES_BREAK |
-| PS-10 | 8 | none (ED-07 +14 deferred) | 93-100 | 4 | EDIT_DEFERRED |
-| PS-11 | 24 | ED-08 −4 | 101-120 | 4 | WHOLLY_ON_PAGE |
-| PS-12 | 13 | none | 121-133 | 5 | WHOLLY_ON_PAGE |
+| PS-01 | 12 | ED-01 +6 (revised from +4) | 1-18 | 1 | WHOLLY_ON_PAGE |
+| PS-02 | 18 | none | 19-36 | 1 | STRADDLES_BREAK |
+| PS-03 | 9 | ED-02 −3 | 37-42 | 2 | WHOLLY_ON_PAGE |
+| PS-04 | 22 | ED-03 −22 DEFERRED (was ACCEPTED) | 43-64 | 2 | EDIT_DEFERRED |
+| PS-05 | 14 | none | 65-78 | 3 | WHOLLY_ON_PAGE |
+| PS-06 | 7 | ED-04 +6 DEFERRED | 79-85 | 3 | EDIT_DEFERRED |
+| PS-07 | 25 | ED-05 −21, ED-09 −5 → −1, held at 1 | 86 | 3 | LENGTH_FLOORED |
+| PS-08 | 11 | ED-06 +2 | 87-99 | 3 | STRADDLES_BREAK |
+| PS-09 | 16 | none | 100-115 | 4 | WHOLLY_ON_PAGE |
+| PS-10 | 8 | ED-07 +14 ACCEPTED (was DEFERRED) | 116-137 | 4 | STRADDLES_BREAK |
+| PS-11 | 17 | ED-08 −4 | 138-150 | 5 | WHOLLY_ON_PAGE |
+| PS-12 | 13 | none | 151-163 | 6 | WHOLLY_ON_PAGE |
 
-- Hand checks of the deciding rows (GLD-4): **PS-04** 22 − 22 = 0 < 1, held at 1 line on line 41 →
-  page 2 (lines 31-60), floored. **PS-07** 25 − 21 − 5 = −1 < 1, held at 1 line on line 63 → page 3,
-  floored; with ED-09 alone it would be 20 lines (63-82), with ED-05 alone 4 lines. **PS-11** ends on line
-  120 = 4 × 30, the last line of page 4, so it sits wholly on page 4. **PS-12** starts on line 121 → page 5;
-  the last line, 133, is on page 5.
+- Hand checks of the deciding rows (GLD-4):
+  - **PS-04:** ED-03's latest line (2026-09-09) is DEFERRED, so there is no accepted edit. It keeps 22 lines,
+    43-64, starting on page 2; the deferral outranks the page break.
+  - **PS-07:** 25 − 21 − 5 = −1 < 1, so it is held at 1 line, on line 86, page 3 (lines 61-90).
+  - **PS-10:** ED-07's latest line (2026-09-10) is ACCEPTED, so 8 + 14 = 22 lines, 116-137: it starts on
+    page 4 and ends on page 5, so it straddles.
+  - **PS-11:** ends on line 150 = 5 × 30, so it sits wholly on page 5. **PS-12** is 151-163, page 6.
 
 ## 5. Difficulty design (declared before the measuring battery)
 
-**Crux: unit of analysis in the edit register** (sanctioned pattern). The register is keyed by edit, and the
-length rule is defined over every accepted edit proposed for a passage. The deciding passage's second edit is
-far from its first (the register's last line), and one literally true requester sentence invites reading the
-later edit as a revision of the earlier one ("the edits from the second read are the ones at the bottom").
-The definition is stated where the rules live. No sentence describes PS-07 or tells the reader what to do
-with it, and the descriptions show two distinct cuts. A secondary rule check, the exact-length cut on PS-04,
-is no longer flagged in the instruction.
+**Crux: unit of analysis at two levels** (sanctioned pattern). The register's rows are log entries, not
+edits, and edits are not passages. Lines of one edit collapse to the latest ("An edit stands as its latest
+line records it"), and edits of one passage add up ("every accepted edit proposed for it"). Both definitions
+are stated where the rules live, and no sentence names a passage, an edit or a date. The requester's lead,
+"every line in it is a call one of us made", is literally true and invites treating each line as an edit
+to apply. The deciding revisions sit on the log's last lines, far from the lines they revise (ordering
+assumption, T5). The salient exact-length cut, which the previous build and the mined task both turned on,
+is now a deferral.
 
-Expected wrong readings, each recomputed from the inputs by `tests/discrimination.py` (all nine readings,
+Expected wrong readings, each recomputed from the inputs by `tests/discrimination.py` (all twelve readings,
 gold included, give pairwise-distinct deliverables):
 
 | id | reading | what it changes | checks that fail |
 |---|---|---|---|
-| W1 | one edit per passage, the last listed wins (a `passage_id → edit` dict) | PS-07 20 lines; PS-07-PS-12 move; figures 4/2/1/5/6 | `register_trap_ps07`, `register_rows`, `results_figures` |
-| W2 | one edit per passage, the first listed wins | PS-07 4 lines, WHOLLY; PS-11 straddles | `register_trap_ps07`, `register_rows`, `results_figures` |
-| W3 | one output row per register row (a left join) | 13 rows, PS-07 twice | `register_trap_ps07`, `register_rows`, `results_figures` |
-| W4 | no floor: a passage cut to nothing vanishes | PS-04, PS-07 not floored; later rows move | both traps, `register_rows`, `results_figures` |
-| W5 | floored, but the held line not counted | PS-09, PS-12 move | `register_rows` |
-| W6 | deferred edits counted in the length | PS-11, PS-12 move; final page 6 | `register_rows`, `results_figures` |
-| W7 | the last line taken one past the passage | PS-11 straddles | `register_rows`, `results_figures` |
-| W8 | geometry ranked above a deferred edit | PS-06 straddles | `register_rows`, `results_figures` |
+| W1 | every register line counts (re-logged accepted lines applied again) | PS-01 +10; PS-04 floored; PS-10 still deferred | `register_trap_ps04`, `register_trap_ps10`, `register_rows`, `results_figures` |
+| W2 | each edit read from its first line (the first-read state) | PS-04 floored; PS-10 deferred | `register_trap_ps04`, `register_trap_ps10`, `register_rows`, `results_figures` |
+| W3 | one line per passage, the last wins (a `passage_id` dict) | PS-07 20 lines; later rows move | `register_trap_ps07`, `register_trap_ps10`, `register_rows`, `results_figures` |
+| W4 | one line per passage, the first wins | PS-04 floored, PS-07 4 lines, PS-10 deferred | all three traps, `register_rows`, `results_figures` |
+| W5 | one output row per edit (a left join) | 13 rows, PS-07 twice | `register_trap_ps07`, `register_rows`, `results_figures` |
+| W6 | a DEFERRED line anywhere in an edit's history makes the passage deferred | PS-10 EDIT_DEFERRED | `register_trap_ps10`, `results_figures` |
+| W7 | no floor | PS-07 shrinks the manuscript | `register_trap_ps07`, `register_rows`, `results_figures` |
+| W8 | floored, but the held line not counted | later rows move | `register_rows` |
+| W9 | deferred edits counted in the length | PS-04 floored; rows move | `register_trap_ps04`, `register_rows` |
+| W10 | the last line taken one past the passage | PS-11 straddles | `register_rows`, `results_figures` |
+| W11 | geometry ranked above a deferred edit | PS-04 straddles | `register_trap_ps04`, `results_figures` |
 
-Under W1 the output passes every check a run can apply to itself: 12 rows, one per passage, all four
-verdicts used, the figures summing to 12.
+Under W1 and W2 the output passes every check a run can apply to itself: 12 rows, one per passage, all four
+verdicts used, the figures summing to 12, and PS-04 "not vanishing".
 
 ## 6. Probes and solvers
 
-- **Discrimination** (`tests/discrimination.py`, deterministic): **34 of 34 as expected**: 11 equivalence
-  variants pass (row shuffle, JSON key order, JSON figures as N.0, quoted fields, CRLF, no trailing newline,
-  BOM, page numbers as N.0, padded fields, lower-case verdicts, an extra scratch file); 15 breaking variants
-  fail on their own check (a page off, a verdict wrong, a row deleted, appended or duplicated, an extra column,
-  each trap row wrong, a figure off by one, empty deliverables, each deliverable deleted, bare header + `{}`,
-  figures as a list, an extra JSON key on `results_keyset`); the 8 wrong readings W1-W8 fail as declared.
+- **Discrimination** (`tests/discrimination.py`, deterministic): **38 of 38 as expected**. 11 equivalence
+  variants pass: row shuffle, JSON key order, JSON figures as N.0, quoted fields, CRLF, no trailing newline,
+  BOM, page numbers as N.0, padded fields, lower-case verdicts, and an extra scratch file. 16 breaking variants
+  fail on their own check: a page off, a verdict wrong, a row deleted, appended or duplicated, an extra column,
+  each of the three trap rows wrong, a figure off by one, empty deliverables, each deliverable deleted, a bare
+  header with `{}`, figures as a list, and an extra JSON key on `results_keyset`. The 11 wrong readings W1-W11
+  fail as declared.
 - **Reward floor** (shipped `test.sh`): empty workspace 0.0; bare header + `{}` 0.0.
 
 ## 7. Environment tests
 
-Run with the shipped `test.sh` in the task image: gold 1.0 (6/6 checks, 14 pytest items passed); gold +
+Run with the shipped `test.sh` in the task image: gold 1.0 (7/7 checks, 15 pytest items passed); gold +
 unrelated scratch files 1.0; both deliverables replaced by symlinks to the gold 0.0 (guard); planted
 `conftest.py`, `sitecustomize.py` and `usercustomize.py` beside a CSV with one wrong page 0.0 (the plants
-have no effect; `register_rows` fails); extra key in `results.json` 0.833333 (incidental only); nop 0.0;
+have no effect; `register_rows` fails); extra key in `results.json` 0.857143 (incidental only); nop 0.0;
 `solve.sh` (oracle path) 1.0 with `agent/trajectory.json` written. `input_integrity.json` reports the inputs
 intact in every run.
 
@@ -158,10 +169,17 @@ intact in every run.
 **PENDING.** Filled in from the GLM-5.2 battery (opencode 1.18.18, `glmproxy/glm-5.2`): one job, every run on
 one `task_checksum`, lane pre-registered as the first five by `started_at`. Each run is classified with
 `python3 tools/triage_trials.py <job_dir>` (repository root), which names the reading its deliverables match
-(GOLD or W1-W8) and lists the rows it got wrong. The table layout to fill in:
+(GOLD or W1-W11) and lists the rows it got wrong. The table layout to fill in:
 
 | started (UTC) | trial | reward | slot | checks | what happened |
 |---|---|---|---|---|---|
+
+**Earlier builds (described, not quoted).** The mined task disclosed its only trap in the instruction; GLM-5.2
+solved 3/3 envelope renderings. The first rework moved the join into the data: an edit-keyed register with
+PS-07 carrying two accepted edits, the second on the last line, and the floor hint removed. GLM-5.2 through
+opencode 1.18.18 solved it **5 of 5** (job `b52a9-glm5x-run1`, all 5 concurrent). Summing a passage's edits
+is a stated rule the model applies reliably. The current build keeps that case and adds the log level
+(latest line per edit), which reverses the exact-length cut and the PS-10 deferral.
 
 ## 9. Isolation proof
 
@@ -169,7 +187,7 @@ In a fresh container built from `environment/` (network off): a whole-filesystem
 `test.sh`, `verifier.json`, `score.py`, `test_outputs.py`, `derive_gold.py`, `discrimination.py`,
 `golden_trajectory.json`, `input_hashes.json` and every deliverable name returns nothing outside Python's
 own site-packages; `/tests`, `/solution` and `/logs/verifier` are absent; no file contains the gold-only
-string `PS-07,3,LENGTH_FLOORED`, while the positive control `ED-09` is found in the edit register. The
+string `PS-10,4,STRADDLES_BREAK`, while the positive control `2026-09-09,ED-03` is found in the edit register. The
 Dockerfile copies `input/` only. Inputs are read-only in the image (advisory: root can still write), and
 nothing on the grading path reads `/app/input`; `check_inputs.py` records their hashes as evidence only.
 

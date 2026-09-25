@@ -42,23 +42,39 @@ G_JSON = json.loads((GOLD / "results.json").read_text(encoding="utf-8"))
 
 
 # --- one solver over the shipped inputs, one rule switchable per wrong reading ----------------------
-def solve(last_wins=False, first_wins=False, row_per_edit=False, no_floor=False,
-          floor_takes_no_line=False, deferred_counts=False, exclusive_end=False,
-          geometry_first=False):
-    ledger = list(csv.DictReader(io.open(INPUTS / "passage_ledger.csv", encoding="utf-8")))
-    register = list(csv.DictReader(io.open(INPUTS / "edit_register.csv", encoding="utf-8")))
+def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
+          deferred_counts=False, exclusive_end=False, geometry_first=False):
+    """One solver, one switch per wrong reading.
+
+    select: which register lines decide a passage's edits
+      latest         each edit stands as its latest line; every such edit counts (the gold)
+      every_line     every line is an edit in its own right (re-logged edits counted again)
+      first_line     each edit stands as its FIRST line (the first-read state)
+      passage_last   one line per passage: the passage's last line wins (a passage_id dict)
+      passage_first  one line per passage: its first line wins
+      row_per_edit   latest line per edit, but one register row per edit (a left join)
+    any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
+    """
+    ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
+    register = list(csv.DictReader(io.open(inputs / "edit_register.csv", encoding="utf-8")))
+    if select == "every_line":
+        chosen = register
+    elif select == "first_line":
+        chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
+    elif select == "passage_last":
+        chosen = list({e["passage_id"]: e for e in register}.values())
+    elif select == "passage_first":
+        chosen = list({e["passage_id"]: e for e in reversed(register)}.values())
+    else:
+        chosen = list({e["edit_code"]: e for e in register}.values())
     edits = {}
-    for e in register:
-        if last_wins:
-            edits[e["passage_id"]] = [e]
-        elif first_wins:
-            edits.setdefault(e["passage_id"], [e])
-        else:
-            edits.setdefault(e["passage_id"], []).append(e)
+    for e in chosen:
+        edits.setdefault(e["passage_id"], []).append(e)
+    ever_deferred = {e["passage_id"] for e in register if e["edit_state"] == "DEFERRED"}
     units = []  # (passage_id, drafted, [edits]) -- one per ledger line, or one per joined edit
     for p in ledger:
         mine = edits.get(p["passage_id"], [])
-        if row_per_edit and len(mine) > 1:
+        if select == "row_per_edit" and len(mine) > 1:
             units += [(p["passage_id"], int(p["drafted_lines"]), [e]) for e in mine]
         else:
             units.append((p["passage_id"], int(p["drafted_lines"]), mine))
@@ -76,7 +92,7 @@ def solve(last_wins=False, first_wins=False, row_per_edit=False, no_floor=False,
         first = line
         last_page = (first - 1 + length) // 30 + 1 if exclusive_end else page(first + length - 1)
         geo = "S" if page(first) != last_page else "W"
-        deferred = any(e["edit_state"] == "DEFERRED" for e in mine)
+        deferred = any(e["edit_state"] == "DEFERRED" for e in mine) or (any_deferred and pid in ever_deferred)
         if floored:
             v = "F"
         elif geometry_first:
@@ -125,7 +141,7 @@ def body():
 
 
 def main():
-    gold_rows, gold_res = solve()
+    gold_rows, gold_res = solve(INPUTS)
     assert render(gold_rows) == G_CSV and gold_res == G_JSON, "solver does not reproduce the gold"
     rows = body()
     rnd = random.Random(52)
@@ -160,9 +176,9 @@ def main():
     expect("E11 add an unrelated scratch file", failing(extra={"scratch.py": "print(1)\n"}), None)
 
     print("11.2 breaking suite: must fail on the check written for it")
-    expect("B1 one page off (PS-09 3 -> 4)", failing(render(edit("PS-09", 1, "4"))), ["register_rows"])
-    expect("B2 one verdict wrong (PS-10 EDIT_DEFERRED -> WHOLLY_ON_PAGE)",
-           failing(render(edit("PS-10", 2, "WHOLLY_ON_PAGE"))), ["register_rows"])
+    expect("B1 one page off (PS-09 4 -> 5)", failing(render(edit("PS-09", 1, "5"))), ["register_rows"])
+    expect("B2 one verdict wrong (PS-06 EDIT_DEFERRED -> WHOLLY_ON_PAGE)",
+           failing(render(edit("PS-06", 2, "WHOLLY_ON_PAGE"))), ["register_rows"])
     expect("B3 delete one row (PS-12)", failing(render([r for r in rows if r[0] != "PS-12"])), ["register_rows"])
     expect("B4 append a spurious row (PS-13)", failing(render(rows + [["PS-13", "5", "WHOLLY_ON_PAGE"]])),
            ["register_rows"])
@@ -170,10 +186,12 @@ def main():
            ["register_rows"])
     expect("B6 an extra column", failing(render([r + ["x"] for r in rows]).replace("verdict\n", "verdict,note\n", 1)),
            ["register_rows"])
-    expect("B7 PS-04 allowed to vanish (WHOLLY_ON_PAGE)", failing(render(edit("PS-04", 2, "WHOLLY_ON_PAGE"))),
+    expect("B7 PS-04 floored (LENGTH_FLOORED)", failing(render(edit("PS-04", 2, "LENGTH_FLOORED"))),
            ["register_trap_ps04"])
     expect("B8 PS-07 with one edit only (WHOLLY_ON_PAGE)", failing(render(edit("PS-07", 2, "WHOLLY_ON_PAGE"))),
            ["register_trap_ps07"])
+    expect("B8b PS-10 left deferred (EDIT_DEFERRED)", failing(render(edit("PS-10", 2, "EDIT_DEFERRED"))),
+           ["register_trap_ps10"])
     expect("B9 a figure off by one", failing(json_obj=dict(G_JSON, final_page_count=G_JSON["final_page_count"] + 1)),
            ["results_figures"])
     expect("B10 every deliverable empty", failing("", raw_json=""),
@@ -183,26 +201,33 @@ def main():
     expect("B13 bare header and {}", failing(",".join(HEADER) + "\n", raw_json="{}"),
            ["register_rows", "results_figures"])
     expect("B14 figures as a JSON list", failing(raw_json=json.dumps(list(G_JSON.values()))), ["results_figures"])
-    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=133)),
+    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=163)),
            ["results_keyset"])
 
     print("declared wrong readings (README section 5), recomputed from the inputs")
     for label, kw, must in (
-        ("W1 one edit per passage, the last listed wins (dict overwrite)", dict(last_wins=True),
+        ("W1 every register line counts (re-logged edits applied again)", dict(select="every_line"),
+         ["register_trap_ps04", "register_rows", "results_figures"]),
+        ("W2 each edit read from its first line (the first-read state)", dict(select="first_line"),
+         ["register_trap_ps04", "register_trap_ps10", "register_rows", "results_figures"]),
+        ("W3 one line per passage, the last wins (a passage_id dict)", dict(select="passage_last"),
          ["register_trap_ps07", "register_rows", "results_figures"]),
-        ("W2 one edit per passage, the first listed wins", dict(first_wins=True),
-         ["register_trap_ps07", "results_figures"]),
-        ("W3 one register row per edit (PS-07 twice)", dict(row_per_edit=True),
+        ("W4 one line per passage, the first wins", dict(select="passage_first"),
+         ["register_trap_ps04", "register_trap_ps07", "register_trap_ps10", "register_rows", "results_figures"]),
+        ("W5 one register row per edit (PS-07 twice)", dict(select="row_per_edit"),
          ["register_trap_ps07", "register_rows", "results_figures"]),
-        ("W4 no floor: the cut passage vanishes", dict(no_floor=True),
-         ["register_trap_ps04", "register_trap_ps07", "register_rows", "results_figures"]),
-        ("W5 floored but its line not counted", dict(floor_takes_no_line=True), ["register_rows"]),
-        ("W6 deferred edits counted in the length", dict(deferred_counts=True), ["register_rows"]),
-        ("W7 last line taken one past the passage", dict(exclusive_end=True),
+        ("W6 a DEFERRED line anywhere makes the passage deferred", dict(any_deferred=True),
+         ["register_trap_ps10", "results_figures"]),
+        ("W7 no floor: a passage cut past zero shrinks the manuscript", dict(no_floor=True),
+         ["register_trap_ps07", "register_rows", "results_figures"]),
+        ("W8 floored but its line not counted", dict(floor_takes_no_line=True), ["register_rows"]),
+        ("W9 deferred edits counted in the length", dict(deferred_counts=True), ["register_rows"]),
+        ("W10 last line taken one past the passage", dict(exclusive_end=True),
          ["register_rows", "results_figures"]),
-        ("W8 geometry ranked above a deferred edit", dict(geometry_first=True), ["register_rows", "results_figures"]),
+        ("W11 geometry ranked above a deferred edit", dict(geometry_first=True),
+         ["register_trap_ps04", "results_figures"]),
     ):
-        wrong_rows, wrong_res = solve(**kw)
+        wrong_rows, wrong_res = solve(INPUTS, **kw)
         expect(label, failing(render(wrong_rows), json_obj=wrong_res), must)
 
     print(f"\n{len(bad)} problem(s)" + (": " + "; ".join(bad) if bad else ""))

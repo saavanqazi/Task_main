@@ -10,8 +10,8 @@ package: `tools/`.
 | 1 | Static rework: instruction, inputs, crux, verifier, harness, gold, docs | Claude | done |
 | 2 | Local verification in the task image (gold, discrimination, harness attacks, isolation) | Claude | done |
 | 3 | Resolve the 4 preflight NEEDS_REVIEW flags | Claude (you sign off) | done, in `review.csv` |
-| 4 | Layer 2: oracle + nop through Harbor, then the GLM-5.2 battery | **you** | pending |
-| 5 | Calibrate: in band → package; out of band → one lever, re-verify, re-run the battery | you (+ Claude) | pending |
+| 4 | Layer 2: oracle + nop through Harbor, then the GLM-5.2 battery | **you** | round 1 done (5/5, too easy); round 2 pending |
+| 5 | Calibrate: in band → package; out of band → one lever, re-verify, re-run the battery | you (+ Claude) | build v3 hardened and verified; re-run pending |
 | 6 | Package: `evaluations/`, golden trajectory, README §8, `review.csv` Layer 2 rows, zip | you (+ Claude) | pending |
 
 ---
@@ -127,21 +127,30 @@ its `agent/trajectory.json` and classify it:
 | **4-5 / 5** (too easy) | apply **one** hardening lever, re-verify, re-run the battery |
 | **0 / 5** (too hard) | apply **one** easing lever, re-verify, re-run the battery |
 
-Hardening levers, mildest first. Each keeps the definition in the rules:
+### Round log
 
-- **H1:** a second two-edit passage, mixing states. Add `ED-10,PS-10,-3,ACCEPTED,…` at the bottom. Correct:
-  PS-10 is 5 lines and stays `EDIT_DEFERRED`. Last-wins keeps only ED-10, so PS-10 is 5 lines with a
-  geometric verdict (wrong). First-wins keeps 8 lines. `derive_gold.py`'s "exactly one two-edit passage"
-  assertion must be relaxed to "at least one".
-- **H2:** ledger order ≠ id order. Swap two ledger lines (e.g. PS-05 listed after PS-06, as after a chapter
-  move). The spec already says passages run "in the order the ledger lists them"; runs that sort by id fail.
-- **H3:** move the exact-length cut (PS-04) to sit just before a page break, so W4/W5 move more rows.
+| round | build | change | GLM-5.2 (lane) | verdict |
+|---|---|---|---|---|
+| 1 | v2 | edit-keyed register; PS-07 two accepted edits (second on the last line); floor hint removed | **5/5** (`b52a9-glm5x-run1`, concurrency 5, 9m 7s) | too easy |
+| 2 | v3 | register made a dated **log**: an edit stands as its latest line. Second read re-logs ED-01 (+4 → +6), ED-03 (PS-04's exact cut, ACCEPTED → DEFERRED) and ED-07 (PS-10, DEFERRED → ACCEPTED); ED-09 stays as PS-07's second edit. PS-11 17 lines (ends on line 150). Lead: "Nothing has been struck from it; every line in it is a call one of us made." New trap check `register_trap_ps10`; 7 checks | pending (`b52a9-glm5x-run2`) | |
 
-Easing levers, mildest first:
+Gold v3: 3 straddling / 2 deferred / 1 floored / 6 wholly / final page 6. Local: derive_gold clean, discrimination
+38/38, oracle 1.0, nop 0.0, symlinks 0.0, planted hooks 0.0, extra key 0.857143.
 
-- **E1:** delete the lead "the edits from the second read are the ones at the bottom" from `instruction.md`.
-- **E2:** move ED-09 up next to ED-05 (keep its code).
-- **E3:** add to `layout_spec.md`: "A passage can carry more than one edit." (near-recipe; last resort)
+Hardening levers for round 3 (if v3 is still 4-5/5), mildest first; each keeps the definitions in the rules:
+
+- **H1:** a third line for one edit: ED-07 ACCEPTED → DEFERRED → ACCEPTED with the last line revising +14 → +11,
+  so "any ACCEPTED line", "first line" and "any DEFERRED line" readings all diverge on one passage.
+- **H2:** ledger order ≠ id order: list PS-06 before PS-05 (a chapter move). The spec already says passages run
+  "in the order the ledger lists them"; runs that sort by id fail.
+- **H3:** a second two-edit passage whose edits sit on different reads with mixed states (e.g. `ED-10,PS-10,-3,…`
+  accepted on the second read), so a passage-keyed dict loses an accepted edit on a second passage.
+
+Easing levers for round 3 (if v3 is 0/5), mildest first:
+
+- **E1:** delete the lead "Nothing has been struck from it; every line in it is a call one of us made."
+- **E2:** drop the ED-01 revision line (fewer re-logs; the two state flips stay).
+- **E3:** add to `layout_spec.md`: "The second read revisited some first-read calls." (near-recipe; last resort)
 
 After **any** lever:
 
