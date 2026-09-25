@@ -96,6 +96,10 @@ The job file `tools/glm5x.yaml` carries the reference battery's agent block (ope
 harbor run -p writing-b52-a9-manuscript-page-ledger-recompute -a oracle --job-name b52a9-oracle -y
 harbor run -p writing-b52-a9-manuscript-page-ledger-recompute -a nop    --job-name b52a9-nop    -y
 
+# Windows (cmd): run `set PYTHONUTF8=1` first. Harbor's opencode adapter reads the agent's log with
+# the system code page (cp1252); any UTF-8 character GLM prints then crashes the job with
+# UnicodeDecodeError and every trial is recorded 0.0 (seen in b52a9-glm5x-run2: an INFRA failure,
+# not a model result; discard that job).
 # 4b. the battery: GLM-5.2 x 5
 harbor run -c tools/glm5x.yaml --env-file glm.env \
     --job-name b52a9-glm5x-$(date -u +%Y%m%dT%H%M%SZ) -y
