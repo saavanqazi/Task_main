@@ -1,0 +1,10 @@
+edit_code,passage_id,line_change,edit_state,description
+ED-01,PS-01,4,ACCEPTED,Restore the epigraph dropped from the draft
+ED-02,PS-03,-3,ACCEPTED,Tighten the exchange on the station platform
+ED-03,PS-04,-22,ACCEPTED,Cut the dream sequence
+ED-04,PS-06,6,DEFERRED,Expand Wren's letter
+ED-05,PS-07,-21,ACCEPTED,Cut the harbour flashback
+ED-06,PS-08,2,ACCEPTED,Restore the two lines of the ferry song
+ED-07,PS-10,14,DEFERRED,Add a coda to the market scene
+ED-08,PS-11,-4,ACCEPTED,Trim the weather paragraph
+ED-09,PS-07,-5,ACCEPTED,Drop the second foghorn paragraph

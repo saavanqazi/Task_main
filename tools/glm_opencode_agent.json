@@ -1,0 +1,33 @@
+{
+  "_note": "Agent block of the accepted practice-log battery (job t17-glm8x-v9, trial WAMDzEc), keys redacted. Reuse it for this task so the harness version matches the gate (opencode 1.18.18).",
+  "name": "opencode",
+  "model_name": "glmproxy/glm-5.2",
+  "kwargs": {
+    "version": "1.18.18",
+    "opencode_config": {
+      "provider": {
+        "glmproxy": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "GLM via LiteLLM",
+          "options": {
+            "baseURL": "{env:OPENAI_BASE_URL}",
+            "apiKey": "{env:OPENAI_API_KEY}"
+          },
+          "models": {
+            "glm-5.2": {
+              "name": "GLM 5.2",
+              "options": {
+                "max_tokens": 160000
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+    "OPENAI_BASE_URL": "${OPENAI_BASE_URL}"
+  },
+  "agent_setup_timeout_multiplier": 4.0
+}
