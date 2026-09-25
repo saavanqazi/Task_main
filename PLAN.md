@@ -86,22 +86,22 @@ check that it builds.**
 Harbor must run the task **exactly as committed**. Any edit afterwards changes `task_checksum` and voids
 the runs.
 
+Run everything from the repository root (the folder holding `glm.env`, `tools/` and the task folder).
+The job file `tools/glm5x.yaml` carries the reference battery's agent block (opencode 1.18.18,
+`glmproxy/glm-5.2`, same provider config), 5 attempts, concurrency 2; it was validated with
+`harbor run --print-config` and `--dry-run` (Harbor 0.23.0: "Dry run OK — 5 trial(s)").
+
 ```bash
-cd writing-b52-a9-manuscript-page-ledger-recompute
-
 # 4a. sanity: shipped Dockerfile builds; oracle 1.0 (6/6); nop 0.0
-harbor run -p . -a oracle -y
-harbor run -p . -a nop -y
+harbor run -p writing-b52-a9-manuscript-page-ledger-recompute -a oracle --job-name b52a9-oracle -y
+harbor run -p writing-b52-a9-manuscript-page-ledger-recompute -a nop    --job-name b52a9-nop    -y
 
-# 4b. the battery: same agent block as the accepted practice-log battery (tools/glm_opencode_agent.json):
-#     opencode 1.18.18, model glmproxy/glm-5.2, provider config as in that file, keys from your env.
-#     Use the same job config / command you used for job t17-glm8x-v9, pointing it at this task.
-#     Attempts: at least 5 (the lane) — 8 gives spares for solvability/r1 and the golden trajectory.
-#     Concurrency 2, as in the reference.
-export OPENAI_API_KEY=... OPENAI_BASE_URL=...
+# 4b. the battery: GLM-5.2 x 5
+harbor run -c tools/glm5x.yaml --env-file glm.env \
+    --job-name b52a9-glm5x-$(date -u +%Y%m%dT%H%M%SZ) -y
 
-# 4c. classify every run (repo root)
-python3 ../tools/triage_trials.py <jobs_dir>/<job_name>
+# 4c. classify every run
+python3 tools/triage_trials.py jobs/<the b52a9-glm5x-... folder>
 ```
 
 **Pre-register before you look at results:** the lane is the **first five trials by `started_at`**

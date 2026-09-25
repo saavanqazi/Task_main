@@ -1,2 +1,6 @@
 dist/
 __pycache__/
+# secrets and local run output: never commit
+glm.env
+*.env
+jobs/

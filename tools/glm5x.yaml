@@ -1,0 +1,31 @@
+# Harbor job: GLM-5.2 x 5 on writing-b52-a9, same agent block as the accepted practice-log battery.
+# Run from the repository root:
+#   harbor run -c tools/glm5x.yaml --env-file glm.env --job-name b52a9-glm5x-$(date -u +%Y%m%dT%H%M%SZ) -y
+# glm.env must define OPENAI_API_KEY and OPENAI_BASE_URL (JUDGE_MODEL is unused: this task has no judge).
+jobs_dir: jobs
+n_attempts: 5
+n_concurrent_trials: 2
+agent_setup_timeout_multiplier: 4.0
+tasks:
+  - path: writing-b52-a9-manuscript-page-ledger-recompute
+agents:
+  - name: opencode
+    model_name: glmproxy/glm-5.2
+    kwargs:
+      version: "1.18.18"
+      opencode_config:
+        provider:
+          glmproxy:
+            npm: "@ai-sdk/openai-compatible"
+            name: "GLM via LiteLLM"
+            options:
+              baseURL: "{env:OPENAI_BASE_URL}"
+              apiKey: "{env:OPENAI_API_KEY}"
+            models:
+              glm-5.2:
+                name: "GLM 5.2"
+                options:
+                  max_tokens: 160000
+    env:
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL}"
