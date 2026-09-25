@@ -1,7 +1,7 @@
 # Manuscript layout — repagination spec
 
 This spec governs the recomputation of the page each flagged passage lands on. Every
-passage in `passage_ledger.csv` gets one row in the register.
+passage in `passage_ledger.csv` gets one row in the page register.
 
 ## How the manuscript is laid out
 
@@ -12,15 +12,13 @@ page its first line falls on.
 
 ## How the edit register is kept
 
-`edit_register.csv` is a log, one line per entry, in the order the entries were made. An
-edit gets a line when it is proposed and another whenever the call on it is revisited,
-so one edit can have several lines under its `edit_code`. An edit stands as its latest
-line records it: that line's `line_change` and `edit_state` are the edit's.
+`edit_register.xlsx` records every edit on its `Log` sheet, and its `About` sheet says how
+the log is kept.
 
 ## How long a passage is
 
-A passage's length is its drafted lines plus the line change of every accepted edit
-proposed for it. A deferred edit changes nothing: the lines it would add or remove are
+A passage's length is its drafted lines plus the line change of every edit that stands
+accepted for it. A deferred edit changes nothing: the lines it would add or remove are
 not counted, and the passage is recorded as carrying a deferred edit. A passage with no
 accepted edit keeps its drafted length.
 

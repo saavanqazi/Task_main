@@ -5,8 +5,9 @@ Author tool, not on the reward path. It reads only environment/input/ and applie
 layout_spec.md:
   L1  30 lines a page; passages run back to back in ledger order from line 1; a passage's page is the
       page its first line falls on
-  L2  the edit register is a log: an edit can have several lines under its edit_code, and it stands as
-      its LATEST line records it (that line's line_change and edit_state)
+  L2  the edit register (edit_register.xlsx, sheet Log; its About sheet says how it is kept) is a log:
+      an edit can have several lines under its edit_code, and it stands as its LATEST line records it
+      (that line's line_change and edit_state); the Tally sheet is the first read's standing only
   L2b a passage's length is its drafted lines plus the line change of EVERY accepted edit proposed for
       it (a passage can carry more than one edit); a deferred edit changes nothing
   L3  a passage never falls below 1 line: where its accepted edits would take it under that, it is held
@@ -17,7 +18,8 @@ layout_spec.md:
 It also asserts the fixture's invariants (every edit names a ledger passage and keeps one passage
 across its lines, states are ACCEPTED or DEFERRED, the log is in logged_on order with no ties inside an
 edit, ledger ids unique, and the design cases of README section 5 are present) and that every pin in
-tests/verifier.json equals the derived gold.
+tests/verifier.json equals the derived gold. It also checks that the Tally sheet the requester vouches
+for is exactly the log's standing at the end of the first read. Needs openpyxl (the task image has it).
 
   python3 tests/derive_gold.py            compare with solution/files, exit 1 on any difference
   python3 tests/derive_gold.py --write    rewrite solution/files/page_register.csv and results.json
@@ -41,10 +43,23 @@ def page_of(line: int) -> int:
     return (line - 1) // LINES_PER_PAGE + 1
 
 
+def read_sheet(name: str) -> list[dict]:
+    """One sheet of edit_register.xlsx as header-keyed rows (dates as ISO strings, numbers as ints)."""
+    import openpyxl
+    ws = openpyxl.load_workbook(INP / "edit_register.xlsx", data_only=True)[name]
+    head = [c.value for c in ws[1]]
+    rows = []
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        if r[0] is None:
+            continue
+        rows.append({h: (v.date().isoformat() if hasattr(v, "date") and callable(v.date) else v)
+                     for h, v in zip(head, r)})
+    return rows
+
+
 def read_inputs():
     ledger = list(csv.DictReader(io.open(INP / "passage_ledger.csv", encoding="utf-8")))
-    register = list(csv.DictReader(io.open(INP / "edit_register.csv", encoding="utf-8")))
-    return ledger, register
+    return ledger, read_sheet("Log")
 
 
 def derive():
@@ -101,6 +116,25 @@ def derive():
         "no edit deferred first and accepted later"
     assert any(l[0]["line_change"] != l[-1]["line_change"] for l in relogged.values()), \
         "no edit whose line change was revised"
+    assert any(len(l) > 1 and l[0]["line_change"] == l[-1]["line_change"]
+               and l[0]["edit_state"] == l[-1]["edit_state"] == "ACCEPTED" for l in relogged.values()), \
+        "no accepted edit re-confirmed unchanged"
+    # the requester vouches for the Tally sheet ("right as far as it goes"): it must equal the log's
+    # standing at the end of the first read, exactly
+    reads = sorted({l["logged_on"] for l in register})
+    second_from = next(d for d in reads if d.startswith("2026-09"))
+    first_state = {}
+    for l in register:
+        if l["logged_on"] < second_from:
+            first_state[l["edit_code"]] = l
+    want = {pid: [0, "no"] for pid in drafted}
+    for l in first_state.values():
+        if l["edit_state"] == "ACCEPTED":
+            want[l["passage_id"]][0] += int(l["line_change"])
+        else:
+            want[l["passage_id"]][1] = "yes"
+    tally = {t["passage_id"]: [int(t["accepted_line_change"]), t["deferred_edit"]] for t in read_sheet("Tally")}
+    assert tally == want, "the Tally sheet is not the first read's standing"
     multi = [pid for pid, es in edits.items() if len(es) > 1]
     assert multi and any(notes[pid]["length"] == 1 and drafted[pid] > 1 for pid in multi), \
         "no passage whose several accepted edits together floor it"

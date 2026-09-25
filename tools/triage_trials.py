@@ -20,13 +20,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def read_log(inputs):
+    """The Log sheet of edit_register.xlsx as header-keyed rows (dates as ISO strings)."""
+    import openpyxl
+    ws = openpyxl.load_workbook(inputs / "edit_register.xlsx", data_only=True)["Log"]
+    head = [c.value for c in ws[1]]
+    rows = []
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        if r[0] is None:
+            continue
+        rows.append({h: (v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v))
+                     for h, v in zip(head, r)})
+    return rows
+
+
 def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
           deferred_counts=False, exclusive_end=False, geometry_first=False):
     """One solver, one switch per wrong reading.
 
     select: which register lines decide a passage's edits
       latest         each edit stands as its latest line; every such edit counts (the gold)
-      every_line     every line is an edit in its own right (re-logged edits counted again)
+      every_line     every line is an edit in its own right (re-logged edits counted again); also what
+                     folding the second read onto the Tally as additions gives on this fixture
+      tally_only     the first read's standing (the Tally sheet), second read ignored
       first_line     each edit stands as its FIRST line (the first-read state)
       passage_last   one line per passage: the passage's last line wins (a passage_id dict)
       passage_first  one line per passage: its first line wins
@@ -34,9 +50,12 @@ def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_tak
     any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
     """
     ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
-    register = list(csv.DictReader(io.open(inputs / "edit_register.csv", encoding="utf-8")))
+    register = read_log(inputs)
     if select == "every_line":
         chosen = register
+    elif select == "tally_only":
+        second = min(e["logged_on"] for e in register if e["logged_on"] >= "2026-09")
+        chosen = list({e["edit_code"]: e for e in register if e["logged_on"] < second}.values())
     elif select == "first_line":
         chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
     elif select == "passage_last":
@@ -84,7 +103,8 @@ def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_tak
 
 READINGS = {
     "GOLD": {},
-    "W1 every line counts": dict(select="every_line"),
+    "W1 every line counts / 2nd read added onto Tally": dict(select="every_line"),
+    "W1b Tally only (2nd read ignored)": dict(select="tally_only"),
     "W2 first line per edit": dict(select="first_line"),
     "W3 last line per passage (dict)": dict(select="passage_last"),
     "W4 first line per passage": dict(select="passage_first"),

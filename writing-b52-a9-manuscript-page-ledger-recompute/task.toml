@@ -3,7 +3,7 @@ artifacts = ["/app/page_register.csv", "/app/results.json"]
 
 [task]
 name = "obi/writing-b52-a9-manuscript-page-ledger-recompute"
-description = "Re-paginate a manuscript's flagged passages after two edit reads: read each edit's current call from a running edit log, sum every accepted edit per passage, hold any passage its cuts would erase at one line, and record the page each passage starts on and how it sits there"
+description = "Re-paginate a 30-passage manuscript after two edit reads: take each edit's current call from a running edit log rather than from a first-read tally, sum every accepted edit per passage, hold any passage its cuts would erase at one line, and record the page each passage starts on and how it sits there"
 authors = []
 keywords = ["harbor", "b52", "writing", "non-connector", "offline", "ledger_recomputation"]
 

@@ -42,13 +42,29 @@ G_JSON = json.loads((GOLD / "results.json").read_text(encoding="utf-8"))
 
 
 # --- one solver over the shipped inputs, one rule switchable per wrong reading ----------------------
+def read_log(inputs):
+    """The Log sheet of edit_register.xlsx as header-keyed rows (dates as ISO strings)."""
+    import openpyxl
+    ws = openpyxl.load_workbook(inputs / "edit_register.xlsx", data_only=True)["Log"]
+    head = [c.value for c in ws[1]]
+    rows = []
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        if r[0] is None:
+            continue
+        rows.append({h: (v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v))
+                     for h, v in zip(head, r)})
+    return rows
+
+
 def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
           deferred_counts=False, exclusive_end=False, geometry_first=False):
     """One solver, one switch per wrong reading.
 
     select: which register lines decide a passage's edits
       latest         each edit stands as its latest line; every such edit counts (the gold)
-      every_line     every line is an edit in its own right (re-logged edits counted again)
+      every_line     every line is an edit in its own right (re-logged edits counted again); also what
+                     folding the second read onto the Tally as additions gives on this fixture
+      tally_only     the first read's standing (the Tally sheet), second read ignored
       first_line     each edit stands as its FIRST line (the first-read state)
       passage_last   one line per passage: the passage's last line wins (a passage_id dict)
       passage_first  one line per passage: its first line wins
@@ -56,9 +72,12 @@ def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_tak
     any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
     """
     ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
-    register = list(csv.DictReader(io.open(inputs / "edit_register.csv", encoding="utf-8")))
+    register = read_log(inputs)
     if select == "every_line":
         chosen = register
+    elif select == "tally_only":
+        second = min(e["logged_on"] for e in register if e["logged_on"] >= "2026-09")
+        chosen = list({e["edit_code"]: e for e in register if e["logged_on"] < second}.values())
     elif select == "first_line":
         chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
     elif select == "passage_last":
@@ -180,7 +199,7 @@ def main():
     expect("B2 one verdict wrong (PS-06 EDIT_DEFERRED -> WHOLLY_ON_PAGE)",
            failing(render(edit("PS-06", 2, "WHOLLY_ON_PAGE"))), ["register_rows"])
     expect("B3 delete one row (PS-12)", failing(render([r for r in rows if r[0] != "PS-12"])), ["register_rows"])
-    expect("B4 append a spurious row (PS-13)", failing(render(rows + [["PS-13", "5", "WHOLLY_ON_PAGE"]])),
+    expect("B4 append a spurious row (PS-31)", failing(render(rows + [["PS-31", "14", "WHOLLY_ON_PAGE"]])),
            ["register_rows"])
     expect("B5 duplicate a row (PS-05)", failing(render(rows + [r for r in rows if r[0] == "PS-05"])),
            ["register_rows"])
@@ -201,13 +220,15 @@ def main():
     expect("B13 bare header and {}", failing(",".join(HEADER) + "\n", raw_json="{}"),
            ["register_rows", "results_figures"])
     expect("B14 figures as a JSON list", failing(raw_json=json.dumps(list(G_JSON.values()))), ["results_figures"])
-    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=163)),
+    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=412)),
            ["results_keyset"])
 
     print("declared wrong readings (README section 5), recomputed from the inputs")
     for label, kw, must in (
-        ("W1 every register line counts (re-logged edits applied again)", dict(select="every_line"),
-         ["register_trap_ps04", "register_rows", "results_figures"]),
+        ("W1 every line counts / second read added onto the Tally", dict(select="every_line"),
+         ["register_trap_ps04", "register_trap_ps10", "register_rows", "results_figures"]),
+        ("W1b the Tally as it stands (second read ignored)", dict(select="tally_only"),
+         ["register_trap_ps04", "register_trap_ps07", "register_trap_ps10", "register_rows", "results_figures"]),
         ("W2 each edit read from its first line (the first-read state)", dict(select="first_line"),
          ["register_trap_ps04", "register_trap_ps10", "register_rows", "results_figures"]),
         ("W3 one line per passage, the last wins (a passage_id dict)", dict(select="passage_last"),

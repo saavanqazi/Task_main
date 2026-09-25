@@ -31,8 +31,8 @@
    "name": "register_trap_ps04",
    "metadata": {
     "tag": "core",
-    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"An edit stands as its latest line records it: that line's `line_change` and `edit_state` are the edit's.\"; layout_spec.md: \"A deferred edit changes nothing: the lines it would add or remove are not counted, and the passage is recorded as carrying a deferred edit.\"",
-    "how_justification": "csv.read_rows + table_equals on the PS-04 row only (page_number as a number, verdict as text; a duplicated PS-04 row fails). PS-04's only edit, ED-03 (-22, as long as the passage), was logged ACCEPTED on 2026-08-19 and DEFERRED on 2026-09-09; it stands as its latest line, so PS-04 keeps its 22 lines: page 2, EDIT_DEFERRED. A run that applies every ACCEPTED line, or an edit's first line, floors it instead. Isolated so that reading is named by its own check."
+    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; edit_register.xlsx About: \"a new line is added whenever the call on an edit is revisited; from then on the edit's latest line is its call, with that line's line change and state.\"; layout_spec.md: \"A deferred edit changes nothing: the lines it would add or remove are not counted, and the passage is recorded as carrying a deferred edit.\"",
+    "how_justification": "csv.read_rows + table_equals on the PS-04 row only (page_number as a number, verdict as text; a duplicated PS-04 row fails). PS-04's only edit, ED-03 (-22, as long as the passage), was logged ACCEPTED on 2026-08-04 (first read, and so in the Tally sheet) and DEFERRED on 2026-09-08; it stands as its latest line, so PS-04 keeps its 22 lines: page 2, EDIT_DEFERRED. A run that applies every ACCEPTED line, reads an edit's first line, or folds the second read onto the Tally as additions floors it instead. Isolated so that reading is named by its own check."
    },
    "source": {
     "type": "file",
@@ -69,8 +69,8 @@
    "name": "register_trap_ps07",
    "metadata": {
     "tag": "core",
-    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"A passage's length is its drafted lines plus the line change of every accepted edit proposed for it.\"; layout_spec.md: \"A passage never falls below 1 line. Where its accepted edits would take it under that, the passage is held at 1 line and recorded as floored.\"; layout_spec.md: \"A passage held at the minimum is recorded as floored, whatever else is true of it.\"",
-    "how_justification": "csv.read_rows + table_equals on the PS-07 row only. PS-07 carries two edits, ED-05 (-21, 2026-08-20) and ED-09 (-5, 2026-09-11), both standing ACCEPTED; together they take its 25 drafted lines to -1, so it is held at 1 line: page 3, LENGTH_FLOORED. A run that keeps one line per passage gets 20 or 4 lines and a geometric verdict. Isolated so that reading is named by its own check."
+    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"A passage's length is its drafted lines plus the line change of every edit that stands accepted for it.\"; layout_spec.md: \"A passage never falls below 1 line. Where its accepted edits would take it under that, the passage is held at 1 line and recorded as floored.\"; layout_spec.md: \"A passage held at the minimum is recorded as floored, whatever else is true of it.\"",
+    "how_justification": "csv.read_rows + table_equals on the PS-07 row only. PS-07 carries two edits, ED-05 (-21, 2026-08-05) and ED-09 (-5, 2026-09-09), both standing ACCEPTED; together they take its 25 drafted lines to -1, so it is held at 1 line: page 3, LENGTH_FLOORED. A run that keeps one line per passage gets 20 or 4 lines and a geometric verdict. Isolated so that reading is named by its own check."
    },
    "source": {
     "type": "file",
@@ -107,8 +107,8 @@
    "name": "register_trap_ps10",
    "metadata": {
     "tag": "core",
-    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"An edit stands as its latest line records it: that line's `line_change` and `edit_state` are the edit's.\"; layout_spec.md: \"A passage's length is its drafted lines plus the line change of every accepted edit proposed for it.\"",
-    "how_justification": "csv.read_rows + table_equals on the PS-10 row only. PS-10's only edit, ED-07 (+14), was logged DEFERRED on 2026-08-21 and ACCEPTED on 2026-09-10; it stands ACCEPTED, so PS-10 runs 22 lines (116-137) across the page 4/5 break: page 4, STRADDLES_BREAK. A run that treats any DEFERRED line as a deferred edit, or reads the edit's first line, records EDIT_DEFERRED. Isolated so that reading is named by its own check."
+    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; edit_register.xlsx About: \"a new line is added whenever the call on an edit is revisited; from then on the edit's latest line is its call, with that line's line change and state.\"; layout_spec.md: \"A passage's length is its drafted lines plus the line change of every edit that stands accepted for it.\"",
+    "how_justification": "csv.read_rows + table_equals on the PS-10 row only. PS-10's only edit, ED-07 (+14), was logged DEFERRED on 2026-08-06 (so the Tally marks PS-10 deferred) and ACCEPTED on 2026-09-09; it stands ACCEPTED, so PS-10 runs 22 lines (114-135) across the page 4/5 break: page 4, STRADDLES_BREAK. A run that keeps the Tally's deferred flag, treats any DEFERRED line as a deferred edit, or reads the edit's first line, records EDIT_DEFERRED. Isolated so that reading is named by its own check."
    },
    "source": {
     "type": "file",
@@ -145,8 +145,8 @@
    "name": "register_rows",
    "metadata": {
     "tag": "core",
-    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"A page holds 30 lines. The passages run one after another in the order the ledger lists them, the first passage beginning on the first line of the manuscript, and each passage beginning on the line after the one before it ends.\"; layout_spec.md: \"An edit stands as its latest line records it: that line's `line_change` and `edit_state` are the edit's.\"; layout_spec.md: \"The lines the floor holds back are real lines: every passage after it sits that much further down the manuscript than the edit register alone would suggest.\"; layout_spec.md: \"A deferred edit changes nothing: the lines it would add or remove are not counted, and the passage is recorded as carrying a deferred edit.\"",
-    "how_justification": "csv.read_rows + table_equals on the other nine passages cell by cell, with the row set locked to the ledger's twelve passage ids (a missing, extra or duplicated passage fails) and the column set closed to the three header columns. Row order is not graded."
+    "why_justification": "submission_format.md: \"One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).\"; submission_format.md: \"`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec\"; layout_spec.md: \"A page holds 30 lines. The passages run one after another in the order the ledger lists them, the first passage beginning on the first line of the manuscript, and each passage beginning on the line after the one before it ends.\"; edit_register.xlsx About: \"a new line is added whenever the call on an edit is revisited; from then on the edit's latest line is its call, with that line's line change and state.\"; layout_spec.md: \"The lines the floor holds back are real lines: every passage after it sits that much further down the manuscript than the edit register alone would suggest.\"; layout_spec.md: \"A deferred edit changes nothing: the lines it would add or remove are not counted, and the passage is recorded as carrying a deferred edit.\"",
+    "how_justification": "csv.read_rows + table_equals on the other 27 passages cell by cell, with the row set locked to the ledger's 30 passage ids (a missing, extra or duplicated passage fails) and the column set closed to the three header columns. Row order is not graded."
    },
    "source": {
     "type": "file",
@@ -196,7 +196,79 @@
        "verdict": "WHOLLY_ON_PAGE"
       },
       "PS-12": {
+       "page_number": "5",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-13": {
        "page_number": "6",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-14": {
+       "page_number": "6",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-15": {
+       "page_number": "7",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-16": {
+       "page_number": "7",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-17": {
+       "page_number": "8",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-18": {
+       "page_number": "8",
+       "verdict": "EDIT_DEFERRED"
+      },
+      "PS-19": {
+       "page_number": "9",
+       "verdict": "EDIT_DEFERRED"
+      },
+      "PS-20": {
+       "page_number": "9",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-21": {
+       "page_number": "10",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-22": {
+       "page_number": "10",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-23": {
+       "page_number": "11",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-24": {
+       "page_number": "11",
+       "verdict": "EDIT_DEFERRED"
+      },
+      "PS-25": {
+       "page_number": "12",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-26": {
+       "page_number": "12",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-27": {
+       "page_number": "13",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-28": {
+       "page_number": "13",
+       "verdict": "WHOLLY_ON_PAGE"
+      },
+      "PS-29": {
+       "page_number": "13",
+       "verdict": "STRADDLES_BREAK"
+      },
+      "PS-30": {
+       "page_number": "14",
        "verdict": "WHOLLY_ON_PAGE"
       }
      },
@@ -216,7 +288,25 @@
       "PS-09",
       "PS-10",
       "PS-11",
-      "PS-12"
+      "PS-12",
+      "PS-13",
+      "PS-14",
+      "PS-15",
+      "PS-16",
+      "PS-17",
+      "PS-18",
+      "PS-19",
+      "PS-20",
+      "PS-21",
+      "PS-22",
+      "PS-23",
+      "PS-24",
+      "PS-25",
+      "PS-26",
+      "PS-27",
+      "PS-28",
+      "PS-29",
+      "PS-30"
      ],
      "columns": [
       "passage_id",
@@ -252,11 +342,11 @@
     "expected": {
      "keys": {
       "straddling_passage_count": {
-       "value": 3,
+       "value": 9,
        "tolerance": null
       },
       "deferred_edit_count": {
-       "value": 2,
+       "value": 5,
        "tolerance": null
       },
       "length_floored_count": {
@@ -264,11 +354,11 @@
        "tolerance": null
       },
       "wholly_on_page_count": {
-       "value": 6,
+       "value": 15,
        "tolerance": null
       },
       "final_page_count": {
-       "value": 6,
+       "value": 14,
        "tolerance": null
       }
      },
@@ -302,11 +392,11 @@
     "expected": {
      "keys": {
       "straddling_passage_count": {
-       "value": 3,
+       "value": 9,
        "tolerance": null
       },
       "deferred_edit_count": {
-       "value": 2,
+       "value": 5,
        "tolerance": null
       },
       "length_floored_count": {
@@ -314,11 +404,11 @@
        "tolerance": null
       },
       "wholly_on_page_count": {
-       "value": 6,
+       "value": 15,
        "tolerance": null
       },
       "final_page_count": {
-       "value": 6,
+       "value": 14,
        "tolerance": null
       }
      },
