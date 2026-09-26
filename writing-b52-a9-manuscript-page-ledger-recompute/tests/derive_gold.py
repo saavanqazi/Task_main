@@ -7,9 +7,9 @@ Author tool, not on the reward path. It reads only environment/input/ and applie
       last stood), DEFERRED (does not go in, stays open against the passage) or WITHDRAWN (does not go in,
       nothing stays open); a decision returning an edit to an earlier call makes it stand as that call did;
       a decision given as the same call as another makes the same kind of call at this edit's own number
-  L0  (layout spec) the ledger lists flags in the order they were raised; `position` gives manuscript
-      order; a passage listed in more than one stretch is one passage whose stretches run on from each
-      other, and its page is the page its first line falls on
+  L0  (layout spec) the ledger lists flags in the order they were raised; `draft_line` (where the flag
+      starts in the draft) gives manuscript order; a passage flagged in more than one stretch is one
+      passage whose stretches run on from each other, and its page is the page its first line falls on
   L1  30 lines a page; passages run back to back in manuscript order from line 1
   L2  a passage's length is its drafted lines plus the line change of every edit that stands accepted for
       it; a deferred or withdrawn edit changes nothing
@@ -106,7 +106,7 @@ def read_inputs(inp: Path = INP):
 
 def passages(ledger, file_order=False, stretch_separate=False, stretch_overwrite=False):
     """The passages in manuscript order as (passage_id, drafted_lines). Switches are wrong readings."""
-    rows = ledger if file_order else sorted(ledger, key=lambda r: int(r["position"]))
+    rows = ledger if file_order else sorted(ledger, key=lambda r: int(r["draft_line"]))
     if stretch_separate:
         return [(r["passage_id"], int(r["drafted_lines"])) for r in rows]
     out: dict[str, int] = {}
@@ -241,16 +241,25 @@ def solve(inp: Path = INP, **switches):
 
 def derive():
     ledger, log = read_inputs()
-    positions = [int(r["position"]) for r in ledger]
-    assert len(positions) == len(set(positions)), "positions repeat"
+    by_draft = sorted(ledger, key=lambda r: int(r["draft_line"]))
+    line = 1
+    for r in by_draft:   # the draft is contiguous: each flag starts where the one before it ended
+        assert int(r["draft_line"]) == line, f"{r['passage_id']}: draft_line {r['draft_line']}, expected {line}"
+        line += int(r["drafted_lines"])
     order = passages(ledger)
     ids = [pid for pid, _ in order]
-    stretches = {pid: [r for r in ledger if r["passage_id"] == pid] for pid in ids}
+    stretches = {pid: [r for r in by_draft if r["passage_id"] == pid] for pid in ids}
     for pid, rows in stretches.items():
-        pos = sorted(int(r["position"]) for r in rows)
-        between = [int(r["position"]) for r in ledger if pos[0] < int(r["position"]) < pos[-1]
-                   and r["passage_id"] != pid]
-        assert not between, f"{pid}: another passage sits between its stretches"
+        idx = [by_draft.index(r) for r in rows]
+        assert idx == list(range(idx[0], idx[0] + len(idx))), f"{pid}: its stretches are not adjacent in the draft"
+    # the requester vouches for the Draft pages sheet ("the ids and the lines are right; the pages are the draft's")
+    draft = read_sheet("Draft pages")
+    want = [(r["passage_id"], int(r["draft_line"]), int(r["drafted_lines"]),
+             (int(r["draft_line"]) - 1) // 30 + 1,
+             "on one page" if (int(r["draft_line"]) - 1) // 30 == (int(r["draft_line"]) + int(r["drafted_lines"]) - 2) // 30
+             else "over a break") for r in ledger]
+    got = [(d["passage_id"], int(d["draft_line"]), int(d["drafted_lines"]), int(d["draft_page"]), d["sits"]) for d in draft]
+    assert got == want, "Draft pages sheet is not the per-flag draft layout"
     dates = [l["logged_on"] for l in log]
     assert dates == sorted(dates), "the Log is not in entry order"
     missing = sorted({l["decision"] for l in log} - set(DECISIONS))

@@ -12,14 +12,15 @@ described in words only.
 
 An author has to hand a manuscript back to the press with a page number against every passage they flagged,
 after two edit reads. The agent gets four files:
-- the flag ledger, `passage_ledger.csv`: 41 flags in the order they were raised, each with the passage it
-  flags, its `position` in the manuscript, its drafted lines and a note; the second read's seven flags are
-  appended at the bottom, one of them the second stretch of a passage (PS-16) flagged on the first read;
-- the edit register, `edit_register.xlsx`, with three sheets:
+- the flag ledger, `passage_ledger.csv`: 41 flags in the order they were raised (`passage_id, draft_line,
+  drafted_lines`); the first read's 34 flags are in manuscript order, the second read's seven follow, and
+  one of those, the ledger's 39th line, is the second stretch of PS-16, flagged on the first read at line 17;
+- the edit register, `edit_register.xlsx`, with four sheets:
   - `Log`: 58 decisions on 45 edits, each with date, edit, passage, description, the proposed line change
     (first line of an edit only), reader, and **the decision in the reader's own words** (30 wordings);
   - `About`: how the log is kept, what the three kinds of call mean, and how a return, a "Ditto." and a
     "Same call as" decision read;
+  - `Draft pages`: Tomas's register of every flag against the draft's pages (41 rows, PS-16 twice);
   - `Not in`: Tomas's list of the edits not going into this pass;
 - the press's layout spec;
 - the submission format.
@@ -27,29 +28,26 @@ after two edit reads. The agent gets four files:
 It delivers the page register as a CSV (one row per passage: the page the passage now starts on and how it
 sits there) and five roll-up figures in `results.json`.
 
-The work is real repagination after an editorial query round: put the flags into manuscript order and join
-the two-stretch passage; read every decision (an edit's latest decision is its call: accepted, deferred, or
-withdrawn; revised counts are given in words; "Ditto." and "Same call as ED-xx." take another decision's
-kind of call; "Back to Ines's call." returns to an earlier one); sum every accepted edit per passage; floor at
-1 line; record each passage as floored, carrying a deferred edit, crossing a break or wholly on a page.
+The work is real repagination after an editorial query round: put the flags into manuscript order (the
+draft's order, by `draft_line`) and join the two-stretch passage; read every decision (an edit's latest
+decision is its call: accepted, deferred, or withdrawn; revised counts are given in words; "Ditto." and
+"Same call as ED-xx." take another decision's kind of call; "Back to Ines's call." returns to an earlier
+one); sum every accepted edit per passage; floor at 1 line; record each passage as floored, carrying a
+deferred edit, crossing a break or wholly on a page.
 
 **The population is not handed over.** The instruction names no count, page or passage.
 
-**Why it is hard.** Two things at once, neither of which a rule-following script can do for the model:
-- **58 decisions must each be read and encoded by hand**, with lookups: three revise a count in words, six
-  say "Ditto." (the kind of call on the line above, whichever edit that was), four say "Same call as
-  ED-xx." (that edit's kind of call as it then stands), three return to an earlier call, and the rest use
-  fourteen other wordings for accept, park and turn down. Every GLM-5.2 run in builds v2-v5 encoded the
-  decisions into a dict by hand and checked nothing against them but its own reading; one slip in 58 is
-  a 0 under the core gate. There are no state columns to parse and no helper that confirms a reading.
-- **The ledger's shape.** It is in flagging order, not manuscript order (`position` gives that), and PS-16
-  is listed in two stretches, the second appended near the bottom under the same id. The definition sits
-  in the spec as one clause and in the submission format as a parenthetical, as the reference's did; the
-  requester's lead is literally true ("every line in it is a stretch I flagged, and none has been merged or
-  dropped").
-
-The deliverable has four verdicts and three calls have to be mapped onto them; the `Not in` sheet mixes
-deferred and withdrawn edits with no state column, and the requester's lead about it is literally true.
+**Why it is hard.** The unit of the register is the passage, and the ledger's unit is the flag. PS-16 is
+listed twice under one id, 22 lines apart in the file, with nothing on either line saying so: its second
+stretch's `draft_line` follows on from the first's, which a reader can check but no column or note
+points at. The definition is in the layout spec as one parenthetical ("a passage flagged in more than one
+stretch has the stretches' lines together") and in the submission format as another ("a passage is
+everything `passage_ledger.csv` lists under one `passage_id`"). Two literally true requester sentences
+invite one row per flag: "every line in it is a stretch I flagged, and none has been merged or dropped",
+and "Tomas got the flags right; it's the pages that are stale", whose sheet lists PS-16 twice. A run that
+writes one row per ledger line delivers 41 rows; a run that keys a dict by `passage_id` keeps 9 lines for
+PS-16. Either moves every later row. On top of that, the 58 decisions have to be read one by one, with
+"Ditto." and "Same call as" resolved against the log as it then stood, and no sheet confirms the reading.
 
 ## 2. Departures from the mined version
 
@@ -60,10 +58,10 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 | file | was | now | why |
 |---|---|---|---|
-| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the ledger described as "in the order I flagged them, with where each sits in the manuscript; every line in it is a stretch I flagged, and none has been merged or dropped"; the register as "the edit register Ines and Tomas kept through both reads", its Log as "every decision either of them made on an edit, in their own words", "nothing has been struck from it", and "Tomas's Not in sheet lists every edit that isn't going into this pass"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (every ledger line is one flagged stretch and none was merged; no log line was deleted; the Not in sheet equals the edits whose call is not accepted, asserted by derive_gold.py) |
-| `environment/input/passage_ledger.csv` | 12 passages, `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none), in manuscript order | 41 flags over 40 passages, `passage_id,position,drafted_lines,note`, in flagging order; the second read's flags appended, among them PS-16's second stretch (position 165, "the rest of the scene; runs straight on") | the ledger no longer does the join; manuscript order and the two-stretch passage are the reference's unit-of-analysis trap (§5); PS-11 ends on line 150, the last line of page 5 |
-| `environment/input/edit_register.csv` → `edit_register.xlsx` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook: `Log` (58 dated decisions on 45 edits in the readers' words, `proposed_change` on each edit's first line only; 26 first-read decisions by Ines, 32 second-read decisions by Tomas), `About` (the log's keeping; the three calls; returns, "Ditto." and "Same call as"), `Not in` (Tomas's list of edits not going in, no state column) | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the Log |
-| `environment/input/layout_spec.md` | "The passages run one after another in the order the ledger lists them"; "plus the line change of the edit proposed for it"; "A passage whose edit was deferred" | "`passage_ledger.csv` lists the flags in the order they were raised; `position` gives the manuscript order"; "A passage listed in more than one stretch is one passage: its stretches run on from each other, and its drafted lines are theirs together"; "every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; a pointer to the register's About sheet | definitions where the data lives (FIX-2), as the reference's C4 and About sheet do |
+| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the ledger described as "in the order I flagged them, with the draft line each starts on; every line in it is a stretch I flagged, and none has been merged or dropped"; the register as "the edit register Ines and Tomas kept through both reads", its Log as "every decision either of them made on an edit, in their own words", "nothing has been struck from it", "Tomas's Draft pages sheet has every flag against the draft's pages", and "Tomas got the flags right; it's the pages that are stale"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (every ledger line is one flagged stretch and none was merged; no log line was deleted; the Draft pages sheet is the per-flag draft layout and the Not in sheet equals the edits whose call is not accepted, both asserted by derive_gold.py) |
+| `environment/input/passage_ledger.csv` | 12 passages, `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none), in manuscript order | 41 flags over 40 passages, `passage_id,draft_line,drafted_lines`, in flagging order; the second read's flags appended, among them PS-16's second stretch (file line 39; its first stretch is line 17), with no note and no stretch column | the ledger no longer does the join; manuscript order comes from `draft_line`, and the two-stretch passage is the reference's unit-of-analysis trap done as the reference did it: a repeated id far down the file, nothing pointing at it (§5) |
+| `environment/input/edit_register.csv` → `edit_register.xlsx` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook: `Log` (58 dated decisions on 45 edits in the readers' words, `proposed_change` on each edit's first line only), `About` (the log's keeping; the three calls; returns, "Ditto." and "Same call as"), `Draft pages` (Tomas's per-flag register against the draft's pages: 41 rows, PS-16 twice, every value true of the draft), `Not in` (Tomas's list of edits not going in, no state column) | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the Log; `Draft pages` is asserted equal to the per-flag draft layout (it is Rui's tab: right ids, wrong unit) |
+| `environment/input/layout_spec.md` | "The passages run one after another in the order the ledger lists them"; "plus the line change of the edit proposed for it"; "A passage whose edit was deferred" | "`draft_line` is the line of the draft each flag starts on, and the manuscript keeps the draft's order"; "its drafted lines (a passage flagged in more than one stretch has the stretches' lines together)"; "every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; a pointer to the register's About sheet | definitions where the data lives (FIX-2), each stated once, as the reference's C4 parenthetical is |
 | `environment/input/submission_format.md` | "One row per record, keyed by `passage_id`" and "in the order the file lists them" (order ungraded); a thousands-separator / currency clause for page numbers | "One row per passage (a passage is everything `passage_ledger.csv` lists under one `passage_id`), in any order, with `passage_id` in the ledger's own form"; "`page_number` … a plain whole number" | P6 over-specification: order was demanded but never graded; the currency clause did not fit page numbers |
 | `environment/Dockerfile` | `python:3.12-slim-bookworm` unpinned | pinned by digest `@sha256:4766d8…58a2` (same base as the accepted Task_17 bundle) | ENV-3 |
 | `task.toml` | `artifacts = []`, no reward shape | two artifact paths; `reward_shape`; description rewritten | TOML-4/5, HAR-2, PKG-14 |
@@ -150,9 +148,9 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
   `tests/derive_gold.py` (30 wordings: 8 accept as they stand, 6 accept at a revised count, 4 defer,
   5 withdraw, 2 return to Ines's call, "Ditto.", and 4 "Same call as ED-xx.").
 - Hand checks of the deciding rows (GLD-4):
-  - **PS-16:** two stretches, 24 + 9 = 33 drafted lines (positions 160 and 165); ED-13 stands accepted at
-    −12 ("Yes, and take the next three lines with it: twelve out."), so 21 lines,
-    221-241: STRADDLES_BREAK, page 8.
+  - **PS-16:** two stretches, 24 lines from draft line 235 and 9 from draft line 259 (the ledger's 17th and
+    39th lines), 33 drafted lines; ED-13 stands accepted at −12 ("Yes, and take the next three lines with it:
+    twelve out."), so 21 lines, 221-241: STRADDLES_BREAK, page 8.
   - **PS-17:** ED-40 (−7) was "Go ahead." then "Same call as ED-24."; ED-24 stands withdrawn, so ED-40 stands
     withdrawn: PS-17 keeps 15 lines, 242-256, and is not deferred.
   - **PS-31:** ED-42 (+2) has one decision, "Ditto.", on the line after "Leave it with the author." (ED-38):
@@ -167,18 +165,23 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 ## 5. Difficulty design (declared before the measuring battery)
 
-**Two cruxes, stacked.** Builds v2-v5 each added one rule and each was solved 5/5: every run read all inputs,
-turned each rule into a checklist item, encoded the data by hand, computed in a script and cross-checked
-against any helper. v6 keeps v5's three-way prose calls and adds the two things that method does not cover.
+**Crux: unit of analysis, done as the reference did it.** Builds v2-v6 each stated a subtler rule and each
+was solved 5/5: every run read all inputs, turned each rule into a checklist item, encoded the data by hand,
+computed in a script and cross-checked against any helper. In v6 the two-stretch passage carried a `note`
+("runs straight on") and a `position` column that sorted its stretches together, and every run merged it
+at once. The reference's DR-16 carried nothing: a repeated id 25 rows down, one parenthetical definition,
+two literally true leads and a helper tab listing it twice, and 5 of 8 runs took one row per line.
 
-1. **Hand-encoding load with lookups and no oracle to check against.** 58 decisions in 30 wordings, of
-   which ten are references ("Ditto." six times, "Same call as ED-xx." four times) that resolve to another
-   line's or another edit's kind of call at that moment, two are returns, and six give a revised number in
-   words. The model has to produce one 45-entry mapping by hand; nothing in the workbook confirms it, and the
-   `Not in` sheet only corroborates the binary misreading. One wrong entry fails a core check.
-2. **Unit of analysis in the ledger** (the reference's mechanism). The ledger is in flagging order with a
-   `position` column, and PS-16 is listed twice, the second stretch near the bottom under the same id, with
-   the definition in one spec clause and one submission-format parenthetical and the lead literally true.
+v7 does the same. PS-16 is a repeated id 22 lines down the ledger with no note and no stretch column;
+`draft_line` gives manuscript order without pointing at the repeat; the definition is one parenthetical in
+the spec and one in the submission format; the leads are "every line in it is a stretch I flagged, and
+none has been merged or dropped" and "Tomas got the flags right; it's the pages that are stale"; and
+Tomas's `Draft pages` sheet lists 41 flags, PS-16 twice, every value true of the draft. The wrong readings
+pass every self-check: 41 rows with the figures summing to 41 (W11), or 40 rows with PS-16 at 9 lines
+(W12), and both agree with `Draft pages`.
+
+v5's and v6's difficulty stays underneath: 58 prose decisions with "Ditto." and "Same call as" references,
+three calls onto four verdicts, and a `Not in` sheet that corroborates the binary misreading.
 
 Expected wrong readings, each recomputed from the inputs by `tests/discrimination.py` with the gold's own
 solver. All eighteen readings, gold included, give pairwise-distinct deliverables:
@@ -194,17 +197,14 @@ solver. All eighteen readings, gold included, give pairwise-distinct deliverable
 | W7 | every accepting line applied again | eight traps, `register_rows`, `results_figures` |
 | W8 | "Same call as" copying the other edit's number | `_ps34`, `results_figures` |
 | W9 | "Ditto." read as an acceptance | `_ps31`, `register_rows`, `results_figures` |
-| W10 | the ledger laid out in file order | seven traps, `register_rows`, `results_figures` |
-| W11 | each ledger stretch its own passage (PS-16 twice) | `_ps16`, `_ps17`, `_ps24`, `register_rows`, `results_figures` |
-| W12 | a later stretch overwriting the first (PS-16 = 9 lines) | six traps, `register_rows`, `results_figures` |
+| W10 | the ledger laid out in file order (`draft_line` ignored) | seven traps, `register_rows`, `results_figures` |
+| W11 | one register row per ledger line (PS-16 twice; 41 rows) | `_ps16`, `_ps17`, `_ps24`, `register_rows`, `results_figures` |
+| W12 | a `passage_id` dict: the later stretch overwrites (PS-16 = 9 lines) | six traps, `register_rows`, `results_figures` |
 | W13 | no floor | `_ps07`, `_ps10`, `_ps16`, `_ps17`, `register_rows`, `results_figures` |
 | W14 | floored, but the held line not counted | `_ps10`, `_ps16`, `register_rows`, `results_figures` |
 | W15 | deferred edits counted in the length | five traps, `register_rows`, `results_figures` |
 | W16 | the last line taken one past the passage | `register_rows`, `results_figures` |
 | W17 | geometry ranked above a deferred edit | `_ps04`, `register_rows`, `results_figures` |
-
-Under W1, W9, W10 and W11 the output passes every check a run can apply to itself (W1 also agrees with the
-`Not in` sheet); under W11 the register has 41 rows, one per ledger line, which the lead invites.
 
 ## 6. Probes and solvers
 
@@ -252,8 +252,12 @@ one `task_checksum`, lane pre-registered as the first five by `started_at`. Each
 - **v5:** decisions in prose with three calls; a helper that corroborates the binary misreading. GLM solved it
   5/5 (job `b52a9-glm5x-run5`): every run hand-encoded the 32 decisions into a dict with a rationale each,
   computed in a script, and re-checked against the `Not in` sheet.
-- **v6, current:** the same, at 58 decisions with "Ditto." and "Same call as" references and no confirming helper,
-  plus the reference's unit-of-analysis trap in the ledger (flagging order; PS-16 in two stretches).
+- **v6:** 58 decisions with "Ditto." and "Same call as" references, plus a two-stretch passage in a ledger with a
+  `position` column and a `note` ("the rest of the scene; runs straight on"). GLM solved it 5/5 (job
+  `b52a9-glm5x-run6`, 20 min): one run's first note on the ledger was "some are duplicates (stretches of the
+  same passage)"; one wrote a regex classifier for the decisions and cross-checked it against a manual pass.
+- **v7, current:** the same two-stretch passage with nothing pointing at it (no note, no position column;
+  `draft_line` orders the flags), a helper sheet that lists it twice, and the reference's leads.
 
 ## 9. Isolation proof
 

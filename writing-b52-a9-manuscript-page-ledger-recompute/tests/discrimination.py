@@ -171,7 +171,7 @@ def main():
          ['register_trap_ps34', 'results_figures']),
         ("W9 'Ditto.' read as an acceptance", dict(ditto_is_accept=True),
          ['register_trap_ps31', 'register_rows', 'results_figures']),
-        ('W10 the ledger laid out in file order (position ignored)', dict(file_order=True),
+        ('W10 the ledger laid out in file order (draft_line ignored)', dict(file_order=True),
          ['register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
         ('W11 each ledger stretch its own passage (PS-16 twice)', dict(stretch_separate=True),
          ['register_trap_ps16', 'register_trap_ps17', 'register_trap_ps24', 'register_rows', 'results_figures']),

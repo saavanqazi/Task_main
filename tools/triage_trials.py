@@ -40,7 +40,7 @@ READINGS = {
     "W7 every accepting line again": dict(every_line=True),
     "W8 same-as copies number": dict(same_copies_number=True),
     "W9 ditto = accept": dict(ditto_is_accept=True),
-    "W10 ledger in file order": dict(file_order=True),
+    "W10 ledger in file order (draft_line ignored)": dict(file_order=True),
     "W11 stretches as separate passages": dict(stretch_separate=True),
     "W12 later stretch overwrites": dict(stretch_overwrite=True),
     "W13 no floor": dict(no_floor=True),

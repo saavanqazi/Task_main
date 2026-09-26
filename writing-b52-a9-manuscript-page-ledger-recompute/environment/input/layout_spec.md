@@ -6,11 +6,10 @@ passage in `passage_ledger.csv` gets one row in the page register.
 ## How the manuscript is laid out
 
 A page holds 30 lines. `passage_ledger.csv` lists the flags in the order they were
-raised; `position` gives the manuscript order, lowest first. The passages run one after
-another in manuscript order, the first passage beginning on the first line of the
-manuscript, and each passage beginning on the line after the one before it ends. A passage
-listed in more than one stretch is one passage: its stretches run on from each other, and
-its drafted lines are theirs together. A passage's page is the page its first line falls on.
+raised; `draft_line` is the line of the draft each flag starts on, and the manuscript keeps
+the draft's order. The passages run one after another in that order, the first passage
+beginning on the first line of the manuscript, and each passage beginning on the line after
+the one before it ends. A passage's page is the page its first line falls on.
 
 ## How the edit register is kept
 
@@ -19,8 +18,9 @@ its drafted lines are theirs together. A passage's page is the page its first li
 
 ## How long a passage is
 
-A passage's length is its drafted lines plus the line change of every edit that stands
-accepted for it. An edit that is not accepted changes nothing: the lines it would add or
+A passage's length is its drafted lines (a passage flagged in more than one stretch has
+the stretches' lines together) plus the line change of every edit that stands accepted for
+it. An edit that is not accepted changes nothing: the lines it would add or
 remove are not counted. A passage with no accepted edit keeps its drafted length.
 
 A passage never falls below 1 line. Where its accepted edits would take it under that,

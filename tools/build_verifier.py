@@ -25,9 +25,9 @@ def q(src, s):
     return f'{src}: "{s}"'
 ROWQ = q("submission_format.md", "One row per passage (a passage is everything `passage_ledger.csv` lists under one `passage_id`), in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4` or `4`).")
 PAGEQ = q("submission_format.md", "`page_number` is the page that passage's first line falls on once the accepted edits are in, and `verdict` is how the passage is recorded under the layout spec")
-ORDERQ = q("layout_spec.md", "`passage_ledger.csv` lists the flags in the order they were raised; `position` gives the manuscript order, lowest first.")
-STRETCHQ = q("layout_spec.md", "A passage listed in more than one stretch is one passage: its stretches run on from each other, and its drafted lines are theirs together.")
-LAYQ = q("layout_spec.md", "The passages run one after another in manuscript order, the first passage beginning on the first line of the manuscript, and each passage beginning on the line after the one before it ends.")
+ORDERQ = q("layout_spec.md", "`passage_ledger.csv` lists the flags in the order they were raised; `draft_line` is the line of the draft each flag starts on, and the manuscript keeps the draft's order.")
+STRETCHQ = q("layout_spec.md", "A passage's length is its drafted lines (a passage flagged in more than one stretch has the stretches' lines together) plus the line change of every edit that stands accepted for it.")
+LAYQ = q("layout_spec.md", "The passages run one after another in that order, the first passage beginning on the first line of the manuscript, and each passage beginning on the line after the one before it ends.")
 FLOORQ = q("layout_spec.md", "A passage never falls below 1 line. Where its accepted edits would take it under that, the passage is held at 1 line and recorded as floored.")
 PUSHQ = q("layout_spec.md", "The lines the floor holds back are real lines: every passage after it sits that much further down the manuscript than the edit register alone would suggest.")
 LOGQ = q("edit_register.xlsx About", "An edit's latest decision is its call.")
@@ -35,7 +35,7 @@ CALLQ = q("edit_register.xlsx About", "Deferred: the edit is parked for the auth
 ACCQ = q("edit_register.xlsx About", "Accepted: the edit goes in, with the number of lines the decision gives, or, if it gives none, the edit's number as it last stood.")
 REVQ = q("edit_register.xlsx About", "A decision that returns an edit to an earlier call makes the edit stand as that call did.")
 SAMEQ = q("edit_register.xlsx About", "A decision given as the same call as another decision makes the same kind of call, at this edit's own number.")
-EVERYQ = q("layout_spec.md", "A passage's length is its drafted lines plus the line change of every edit that stands accepted for it.")
+EVERYQ = STRETCHQ
 PRIOQ = q("layout_spec.md", "A passage held at the minimum is recorded as floored, whatever else is true of it.")
 DEFQ = q("layout_spec.md", "A passage with an edit that stands deferred is recorded as carrying a deferred edit.")
 NOTQ = q("layout_spec.md", "An edit that is not accepted changes nothing: the lines it would add or remove are not counted.")
@@ -51,12 +51,14 @@ def table(name, pids, why, how, row_set=False):
             "assertion": {"type": "deterministic", "expected": exp, "deterministic": {"path": "$", "comparison": "table_equals"}}}
 keys = {k: {"value": v, "tolerance": None} for k, v in res.items()}
 def gl(pid): return f"page {gold[pid]['page_number']}, {gold[pid]['verdict']}"
+_led = list(csv.DictReader(open(INP / "passage_ledger.csv")))
+_p16 = sorted(int(r["draft_line"]) for r in _led if r["passage_id"] == "PS-16")
 ISO = "Isolated so that reading is named by its own check."
 TRAPS = [
  ("PS-04", [LOGQ, CALLQ, DEFQ], "PS-04's only edit, ED-03 (-22, as long as the passage), was accepted by Ines ('Yes, cut the whole sequence.') and parked by Tomas ('On reflection, leave this for the author.'); it stands deferred, so PS-04 keeps its 22 lines: {g}. A run that applies the first call floors it."),
  ("PS-07", [EVERYQ, FLOORQ, PRIOQ], "PS-07 carries two edits, ED-05 (-21, Ines) and ED-09 (-5, Tomas), both accepted; together they take its 25 drafted lines to -1, so it is held at 1 line: {g}. A run that keeps one edit per passage gets 20 or 4 lines and a geometric verdict."),
  ("PS-10", [LOGQ, ACCQ, EVERYQ], "PS-10's only edit, ED-07 (+14), was parked by Ines and accepted by Tomas ('Author says go ahead.'); it stands accepted, so PS-10 runs 22 lines: {g}. A run that reads the edit's first call, or treats any parked line as still open, records EDIT_DEFERRED."),
- ("PS-16", [ORDERQ, STRETCHQ, ACCQ], "PS-16 is listed in two stretches, 24 lines at position 160 and 9 lines at position 165 (the ledger's 38th line, appended on the second read); they are one 33-line passage, and its one edit, ED-13, stands accepted at -12 ('Yes, and take the next three lines with it: twelve out.'): 21 lines, {g}. A run that lays the ledger out in file order, keeps the two stretches as two passages, or lets the second stretch overwrite the first, moves this row and every later one."),
+ ("PS-16", [ORDERQ, STRETCHQ, ROWQ, ACCQ], "PS-16 is flagged in two stretches, 24 lines from draft line {d1} and 9 lines from draft line {d2} (the ledger's 38th line, raised on the second read; Tomas's Draft pages sheet lists both); they are one 33-line passage, and its one edit, ED-13, stands accepted at -12 ('Yes, and take the next three lines with it: twelve out.'): 21 lines, {g}. A run that lays the ledger out in file order, keeps the two stretches as two passages, or lets the second stretch overwrite the first, moves this row and every later one."),
  ("PS-17", [LOGQ, SAMEQ, CALLQ, NOTQ], "PS-17's only edit, ED-40 (-7), was accepted by Ines ('Go ahead.') and then given by Tomas as 'Same call as ED-24.'; ED-24 stands withdrawn ('Withdrawn: the letter stays as drafted.'), so ED-40 stands withdrawn, which does not go in and leaves nothing open: PS-17 keeps 15 lines, {g}. A run that leaves the first call, or reads 'not going in' as deferred, gets it wrong."),
  ("PS-20", [LOGQ, ACCQ, REVQ], "PS-20's only edit, ED-15 (-7 proposed), was accepted by Ines at five lines ('Yes, but only five lines out, not seven.'), parked by Tomas, then returned by Tomas to Ines's call ('Back to Ines's call.'); it stands accepted at -5, so PS-20 runs 22 lines: {g}. A run that leaves it parked records EDIT_DEFERRED; a run that restores the proposed -7 moves later rows."),
  ("PS-24", [LOGQ, CALLQ, DEFQ, NOTQ], "PS-24's only edit, ED-17 (-11, as long as the passage), was accepted by Ines ('Yes, the whole interlude goes.') and turned down by Tomas ('No. The author wants the interlude kept.'); it stands withdrawn, so PS-24 keeps its 11 lines and is recorded by its geometry: {g}. A run that folds 'not going in' into deferred records EDIT_DEFERRED; a run that applies the first call floors it."),
@@ -74,7 +76,7 @@ V = [
                 "deterministic": {"path": "$.text", "comparison": "regex_match"}}},
 ] + [
  table(f"register_trap_{pid.lower().replace('-', '')}", [pid], "; ".join([ROWQ, PAGEQ] + quotes),
-       f"csv.read_rows + table_equals on the {pid} row only (page_number as a number, verdict as text; a duplicated {pid} row fails). " + how.format(g=gl(pid)) + " " + ISO)
+       f"csv.read_rows + table_equals on the {pid} row only (page_number as a number, verdict as text; a duplicated {pid} row fails). " + how.format(g=gl(pid), d1=_p16[0], d2=_p16[-1]) + " " + ISO)
  for pid, quotes, how in TRAPS
 ] + [
  table("register_rows", others, "; ".join([ROWQ, PAGEQ, ORDERQ, LAYQ, STRETCHQ, LOGQ, CALLQ, ACCQ, SAMEQ, NOTQ, PUSHQ, DEFQ]),

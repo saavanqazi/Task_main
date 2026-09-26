@@ -2,7 +2,7 @@
 """Build the task's input fixture from one table of data (author tool, not in the task package).
 
 Writes environment/input/passage_ledger.csv and environment/input/edit_register.xlsx (sheets Log,
-About, Not in). The Log records each decision in the reader's own words; what each wording means is
+About, Draft pages, Not in). The Log records each decision in the reader's own words; what each wording means is
 declared once, in tests/derive_gold.py (DECISIONS), which asserts every Log decision is covered.
 
   python3 tools/build_fixture.py writing-b52-a9-manuscript-page-ledger-recompute
@@ -18,28 +18,35 @@ from pathlib import Path
 import openpyxl
 from openpyxl.styles import Alignment, Font
 
-# The flag ledger, in the order the flags were raised: passage_id, position (manuscript order, lowest
-# first), drafted_lines, note. The first read flagged PS-01..PS-34 in manuscript order; the second read
-# appended six new passages and a second stretch of PS-16.
-LEDGER = [
-    ("PS-01", 10, 12, ""), ("PS-02", 20, 18, ""), ("PS-03", 30, 9, ""), ("PS-04", 40, 22, ""),
-    ("PS-05", 50, 12, ""), ("PS-06", 60, 7, ""), ("PS-07", 70, 25, ""), ("PS-08", 80, 11, ""),
-    ("PS-09", 90, 16, ""), ("PS-10", 100, 8, ""), ("PS-11", 110, 17, ""), ("PS-12", 120, 13, ""),
-    ("PS-13", 130, 20, ""), ("PS-14", 140, 6, ""), ("PS-15", 150, 15, ""), ("PS-16", 160, 24, ""),
-    ("PS-17", 170, 15, ""), ("PS-18", 180, 19, ""), ("PS-19", 190, 12, ""), ("PS-20", 200, 27, ""),
-    ("PS-21", 210, 9, ""), ("PS-22", 220, 14, ""), ("PS-23", 230, 23, ""), ("PS-24", 240, 11, ""),
-    ("PS-25", 250, 16, ""), ("PS-26", 260, 7, ""), ("PS-27", 270, 21, ""), ("PS-28", 280, 13, ""),
-    ("PS-29", 290, 10, ""), ("PS-30", 300, 19, ""), ("PS-31", 310, 14, ""), ("PS-32", 320, 8, ""),
-    ("PS-33", 330, 17, ""), ("PS-34", 340, 11, ""),
-    # second read
-    ("PS-35", 55, 9, "flagged on the second read"),
-    ("PS-36", 125, 14, "flagged on the second read"),
-    ("PS-37", 195, 6, "flagged on the second read"),
-    ("PS-16", 165, 9, "the rest of the scene; runs straight on"),
-    ("PS-38", 275, 18, "flagged on the second read"),
-    ("PS-39", 305, 12, "flagged on the second read"),
-    ("PS-40", 335, 10, "flagged on the second read"),
+# The manuscript, in order, as (passage_id, drafted_lines); a passage flagged in two stretches appears twice,
+# its stretches adjacent. The draft line each flag starts on is computed from this order.
+MANUSCRIPT = [
+    ("PS-01", 12), ("PS-02", 18), ("PS-03", 9), ("PS-04", 22), ("PS-05", 12), ("PS-35", 9), ("PS-06", 7),
+    ("PS-07", 25), ("PS-08", 11), ("PS-09", 16), ("PS-10", 8), ("PS-11", 17), ("PS-12", 13), ("PS-36", 14),
+    ("PS-13", 20), ("PS-14", 6), ("PS-15", 15), ("PS-16", 24), ("PS-16", 9), ("PS-17", 15), ("PS-18", 19),
+    ("PS-19", 12), ("PS-37", 6), ("PS-20", 27), ("PS-21", 9), ("PS-22", 14), ("PS-23", 23), ("PS-24", 11),
+    ("PS-25", 16), ("PS-26", 7), ("PS-27", 21), ("PS-38", 18), ("PS-28", 13), ("PS-29", 10), ("PS-30", 19),
+    ("PS-39", 12), ("PS-31", 14), ("PS-32", 8), ("PS-33", 17), ("PS-40", 10), ("PS-34", 11),
 ]
+# The flag ledger is in the order the flags were raised: the first read's 34 flags in manuscript order, then
+# the second read's seven, among them the second stretch of PS-16.
+FIRST_READ_FLAGS = [f"PS-{i:02d}" for i in range(1, 35)]
+SECOND_READ_FLAGS = ["PS-35", "PS-36", "PS-37", ("PS-16", 2), "PS-38", "PS-39", "PS-40"]
+
+
+def ledger_rows():
+    """(passage_id, draft_line, drafted_lines) in flagging order."""
+    starts, line, seen = {}, 1, {}
+    for pid, n in MANUSCRIPT:
+        seen[pid] = seen.get(pid, 0) + 1
+        starts[(pid, seen[pid])] = (line, n)
+        line += n
+    rows = []
+    for f in FIRST_READ_FLAGS + SECOND_READ_FLAGS:
+        key = f if isinstance(f, tuple) else (f, 1)
+        rows.append((key[0], *starts[key]))
+    return rows
+
 
 EDITS = {  # edit_code: (passage_id, description)
     "ED-01": ("PS-01", "Restore the epigraph dropped from the draft"),
@@ -164,7 +171,9 @@ ABOUT = [
     "A decision given as the same call as another decision makes the same kind of call, at this edit's own number.",
     "First read (Ines): 3 to 21 August. Second read (Tomas): 7 to 12 September.",
     "",
-    "Not in: Tomas's list, at the end of the second read, of the edits that are not going into this pass.",
+    "Draft pages: Tomas's register of every flag against the draft's pages (30 lines a page, the draft as it "
+    "stood before either read), for checking off. Not in: Tomas's list, at the end of the second read, of the edits "
+    "that are not going into this pass.",
 ]
 
 
@@ -182,12 +191,12 @@ def main():
         assert (proposed is not None) == (code not in seen), f"{code}: proposed_change on the wrong line"
         seen.add(code)
     assert seen == set(EDITS), sorted(set(EDITS) - seen)
-    positions = [r[1] for r in LEDGER]
-    assert len(positions) == len(set(positions)), "positions repeat"
+    LEDGER = ledger_rows()
+    assert len({r[1] for r in LEDGER}) == len(LEDGER), "draft lines repeat"
 
     with (inp / "passage_ledger.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["passage_id", "position", "drafted_lines", "note"])
+        w.writerow(["passage_id", "draft_line", "drafted_lines"])
         w.writerows(LEDGER)
 
     wb = openpyxl.Workbook()
@@ -211,6 +220,16 @@ def main():
     for row in about.iter_rows():
         row[0].alignment = Alignment(wrap_text=True, vertical="top")
 
+    draft = wb.create_sheet("Draft pages")   # Tomas's per-flag register against the DRAFT's pages
+    draft.append(["passage_id", "draft_line", "drafted_lines", "draft_page", "sits"])
+    for c in draft[1]:
+        c.font = Font(bold=True)
+    for pid, start, n in LEDGER:
+        first, last = (start - 1) // 30 + 1, (start + n - 2) // 30 + 1
+        draft.append([pid, start, n, first, "on one page" if first == last else "over a break"])
+    for col, width in zip("ABCDE", (11, 11, 13, 11, 14)):
+        draft.column_dimensions[col].width = width
+
     notin = wb.create_sheet("Not in")
     notin.append(["edit_code", "passage_id", "description"])
     for c in notin[1]:
@@ -228,7 +247,7 @@ def main():
     wb.properties.created = fixed
     wb.properties.modified = fixed
     wb.save(inp / "edit_register.xlsx")
-    print(f"wrote {len(LEDGER)} ledger rows ({len({r[0] for r in LEDGER})} passages) and {len(LOG)} log lines "
+    print(f"wrote {len(LEDGER)} ledger rows ({len({r[0] for r in LEDGER})} passages, draft {sum(n for _, n in MANUSCRIPT)} lines) and {len(LOG)} log lines "
           f"over {len(EDITS)} edits; Not in: {sum(1 for c in calls.values() if c['state'] != 'ACCEPTED')} edits")
 
 
