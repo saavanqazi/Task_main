@@ -1,31 +1,42 @@
-passage_id,drafted_lines
-PS-01,12
-PS-02,18
-PS-03,9
-PS-04,22
-PS-05,12
-PS-06,7
-PS-07,25
-PS-08,11
-PS-09,16
-PS-10,8
-PS-11,17
-PS-12,13
-PS-13,20
-PS-14,6
-PS-15,15
-PS-16,24
-PS-17,15
-PS-18,19
-PS-19,12
-PS-20,27
-PS-21,9
-PS-22,14
-PS-23,23
-PS-24,11
-PS-25,16
-PS-26,7
-PS-27,21
-PS-28,13
-PS-29,10
-PS-30,19
+passage_id,position,drafted_lines,note
+PS-01,10,12,
+PS-02,20,18,
+PS-03,30,9,
+PS-04,40,22,
+PS-05,50,12,
+PS-06,60,7,
+PS-07,70,25,
+PS-08,80,11,
+PS-09,90,16,
+PS-10,100,8,
+PS-11,110,17,
+PS-12,120,13,
+PS-13,130,20,
+PS-14,140,6,
+PS-15,150,15,
+PS-16,160,24,
+PS-17,170,15,
+PS-18,180,19,
+PS-19,190,12,
+PS-20,200,27,
+PS-21,210,9,
+PS-22,220,14,
+PS-23,230,23,
+PS-24,240,11,
+PS-25,250,16,
+PS-26,260,7,
+PS-27,270,21,
+PS-28,280,13,
+PS-29,290,10,
+PS-30,300,19,
+PS-31,310,14,
+PS-32,320,8,
+PS-33,330,17,
+PS-34,340,11,
+PS-35,55,9,flagged on the second read
+PS-36,125,14,flagged on the second read
+PS-37,195,6,flagged on the second read
+PS-16,165,9,the rest of the scene; runs straight on
+PS-38,275,18,flagged on the second read
+PS-39,305,12,flagged on the second read
+PS-40,335,10,flagged on the second read

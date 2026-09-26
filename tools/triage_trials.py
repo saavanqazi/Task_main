@@ -38,11 +38,16 @@ READINGS = {
     "W5 first decision per edit": dict(first_line_only=True),
     "W6 first read only": dict(first_read_only=True),
     "W7 every accepting line again": dict(every_line=True),
-    "W8 no floor": dict(no_floor=True),
-    "W9 floor line not counted": dict(floor_takes_no_line=True),
-    "W10 deferred counted": dict(deferred_counts=True),
-    "W11 last line one past": dict(exclusive_end=True),
-    "W12 geometry above deferred": dict(geometry_first=True),
+    "W8 same-as copies number": dict(same_copies_number=True),
+    "W9 ditto = accept": dict(ditto_is_accept=True),
+    "W10 ledger in file order": dict(file_order=True),
+    "W11 stretches as separate passages": dict(stretch_separate=True),
+    "W12 later stretch overwrites": dict(stretch_overwrite=True),
+    "W13 no floor": dict(no_floor=True),
+    "W14 floor line not counted": dict(floor_takes_no_line=True),
+    "W15 deferred counted": dict(deferred_counts=True),
+    "W16 last line one past": dict(exclusive_end=True),
+    "W17 geometry above deferred": dict(geometry_first=True),
 }
 
 

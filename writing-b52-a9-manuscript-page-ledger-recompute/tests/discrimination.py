@@ -122,22 +122,21 @@ def main():
     expect("B2 one verdict wrong (PS-06 EDIT_DEFERRED -> WHOLLY_ON_PAGE)",
            failing(render(edit("PS-06", 2, "WHOLLY_ON_PAGE"))), ["register_rows"])
     expect("B3 delete one row (PS-12)", failing(render([r for r in rows if r[0] != "PS-12"])), ["register_rows"])
-    expect("B4 append a spurious row (PS-31)", failing(render(rows + [["PS-31", "14", "WHOLLY_ON_PAGE"]])),
+    expect("B4 append a spurious row (PS-41)", failing(render(rows + [["PS-41", "18", "WHOLLY_ON_PAGE"]])),
            ["register_rows"])
     expect("B5 duplicate a row (PS-05)", failing(render(rows + [r for r in rows if r[0] == "PS-05"])),
            ["register_rows"])
     expect("B6 an extra column", failing(render([r + ["x"] for r in rows]).replace("verdict\n", "verdict,note\n", 1)),
            ["register_rows"])
-    expect("B7 PS-04 floored (LENGTH_FLOORED)", failing(render(edit("PS-04", 2, "LENGTH_FLOORED"))),
-           ["register_trap_ps04"])
-    expect("B8 PS-07 with one edit only (WHOLLY_ON_PAGE)", failing(render(edit("PS-07", 2, "WHOLLY_ON_PAGE"))),
-           ["register_trap_ps07"])
-    expect("B8b PS-10 left deferred (EDIT_DEFERRED)", failing(render(edit("PS-10", 2, "EDIT_DEFERRED"))),
-           ["register_trap_ps10"])
-    expect("B8c PS-20 left parked (EDIT_DEFERRED)", failing(render(edit("PS-20", 2, "EDIT_DEFERRED"))),
-           ["register_trap_ps20"])
-    expect("B8d PS-24 withdrawn read as deferred (EDIT_DEFERRED)", failing(render(edit("PS-24", 2, "EDIT_DEFERRED"))),
-           ["register_trap_ps24"])
+    expect("B7.1 PS-04 verdict EDIT_DEFERRED -> WHOLLY_ON_PAGE", failing(render(edit("PS-04", 2, "WHOLLY_ON_PAGE"))), ["register_trap_ps04"])
+    expect("B7.2 PS-07 verdict LENGTH_FLOORED -> WHOLLY_ON_PAGE", failing(render(edit("PS-07", 2, "WHOLLY_ON_PAGE"))), ["register_trap_ps07"])
+    expect("B7.3 PS-10 verdict WHOLLY_ON_PAGE -> STRADDLES_BREAK", failing(render(edit("PS-10", 2, "STRADDLES_BREAK"))), ["register_trap_ps10"])
+    expect("B7.4 PS-16 verdict STRADDLES_BREAK -> WHOLLY_ON_PAGE", failing(render(edit("PS-16", 2, "WHOLLY_ON_PAGE"))), ["register_trap_ps16"])
+    expect("B7.5 PS-17 verdict WHOLLY_ON_PAGE -> STRADDLES_BREAK", failing(render(edit("PS-17", 2, "STRADDLES_BREAK"))), ["register_trap_ps17"])
+    expect("B7.6 PS-20 verdict STRADDLES_BREAK -> WHOLLY_ON_PAGE", failing(render(edit("PS-20", 2, "WHOLLY_ON_PAGE"))), ["register_trap_ps20"])
+    expect("B7.7 PS-24 verdict WHOLLY_ON_PAGE -> STRADDLES_BREAK", failing(render(edit("PS-24", 2, "STRADDLES_BREAK"))), ["register_trap_ps24"])
+    expect("B7.8 PS-31 verdict EDIT_DEFERRED -> WHOLLY_ON_PAGE", failing(render(edit("PS-31", 2, "WHOLLY_ON_PAGE"))), ["register_trap_ps31"])
+    expect("B7.9 PS-34 verdict WHOLLY_ON_PAGE -> STRADDLES_BREAK", failing(render(edit("PS-34", 2, "STRADDLES_BREAK"))), ["register_trap_ps34"])
     expect("B9 a figure off by one", failing(json_obj=dict(G_JSON, final_page_count=G_JSON["final_page_count"] + 1)),
            ["results_figures"])
     expect("B10 every deliverable empty", failing("", raw_json=""),
@@ -147,7 +146,7 @@ def main():
     expect("B13 bare header and {}", failing(",".join(HEADER) + "\n", raw_json="{}"),
            ["register_rows", "results_figures"])
     expect("B14 figures as a JSON list", failing(raw_json=json.dumps(list(G_JSON.values()))), ["results_figures"])
-    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=430)),
+    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=539)),
            ["results_keyset"])
 
     print("declared wrong readings (README section 5), recomputed from the inputs")
@@ -155,24 +154,39 @@ def main():
                              "register_trap_ps20", "register_trap_ps24")
     for label, kw, must in (
         ("W1 withdrawn read as deferred (the Not in sheet taken as 'parked')", dict(withdrawn_as_deferred=True),
-         [T24, "register_rows", "results_figures"]),
-        ("W2 revised numbers ignored (the proposed change kept)", dict(ignore_revisions=True),
-         ["register_rows", "results_figures"]),
-        ("W3 'Back to Ines's call' ignored (the parked call stands)", dict(revert_noop=True),
-         [T20, "results_figures"]),
-        ("W4 'Back to Ines's call' read as the proposed change", dict(revert_to_proposed=True),
-         ["register_rows", "results_figures"]),
-        ("W5 each edit read from its first decision", dict(first_line_only=True),
-         [T4, T10, T24, "register_rows", "results_figures"]),
-        ("W6 the first read only (second read ignored)", dict(first_read_only=True),
-         [T4, T7, T10, T24, "register_rows", "results_figures"]),
-        ("W7 every accepting line applied again", dict(every_line=True),
-         [T4, "register_rows", "results_figures"]),
-        ("W8 no floor", dict(no_floor=True), [T7, "register_rows", "results_figures"]),
-        ("W9 floored but its line not counted", dict(floor_takes_no_line=True), ["register_rows"]),
-        ("W10 deferred edits counted in the length", dict(deferred_counts=True), [T4, "register_rows"]),
-        ("W11 last line taken one past the passage", dict(exclusive_end=True), ["register_rows", "results_figures"]),
-        ("W12 geometry ranked above a deferred edit", dict(geometry_first=True), [T4, "results_figures"]),
+         ['register_trap_ps17', 'register_trap_ps24', 'register_rows', 'results_figures']),
+        ('W2 revised numbers ignored (the proposed change kept)', dict(ignore_revisions=True),
+         ['register_trap_ps10', 'register_trap_ps24', 'register_rows', 'results_figures']),
+        ("W3 'Back to Ines's call' / 'As Ines had it' ignored (the later call stands)", dict(revert_noop=True),
+         ['register_trap_ps20', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ("W4 a return to Ines's call read as the proposed number", dict(revert_to_proposed=True),
+         ['register_rows']),
+        ('W5 each edit read from its first decision', dict(first_line_only=True),
+         ['register_trap_ps04', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ('W6 the first read only (second read ignored)', dict(first_read_only=True),
+         ['register_trap_ps04', 'register_trap_ps07', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ('W7 every accepting line applied again', dict(every_line=True),
+         ['register_trap_ps04', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ("W8 'Same call as' copying the other edit's number", dict(same_copies_number=True),
+         ['register_trap_ps34', 'results_figures']),
+        ("W9 'Ditto.' read as an acceptance", dict(ditto_is_accept=True),
+         ['register_trap_ps31', 'register_rows', 'results_figures']),
+        ('W10 the ledger laid out in file order (position ignored)', dict(file_order=True),
+         ['register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ('W11 each ledger stretch its own passage (PS-16 twice)', dict(stretch_separate=True),
+         ['register_trap_ps16', 'register_trap_ps17', 'register_trap_ps24', 'register_rows', 'results_figures']),
+        ('W12 a later stretch overwriting the first (PS-16 = 9 lines)', dict(stretch_overwrite=True),
+         ['register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
+        ('W13 no floor', dict(no_floor=True),
+         ['register_trap_ps07', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_rows', 'results_figures']),
+        ('W14 floored but its line not counted', dict(floor_takes_no_line=True),
+         ['register_trap_ps10', 'register_trap_ps16', 'register_rows', 'results_figures']),
+        ('W15 deferred edits counted in the length', dict(deferred_counts=True),
+         ['register_trap_ps04', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps24', 'register_rows', 'results_figures']),
+        ('W16 last line taken one past the passage', dict(exclusive_end=True),
+         ['register_rows', 'results_figures']),
+        ('W17 geometry ranked above a deferred edit', dict(geometry_first=True),
+         ['register_trap_ps04', 'register_rows', 'results_figures']),
     ):
         wrong_rows, wrong_res = solve(INPUTS, **kw)
         expect(label, failing(render(wrong_rows), json_obj=wrong_res), must)

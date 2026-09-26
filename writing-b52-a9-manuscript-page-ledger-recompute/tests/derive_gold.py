@@ -5,9 +5,12 @@ Author tool, not on the reward path. It reads only environment/input/ and applie
   R1  (About sheet) the Log records decisions in the reader's own words; an edit's latest decision is its
       call; a call is ACCEPTED (goes in, with the number the decision gives, else the edit's number as it
       last stood), DEFERRED (does not go in, stays open against the passage) or WITHDRAWN (does not go in,
-      nothing stays open); a decision returning an edit to an earlier call makes it stand as that call did
-  L1  30 lines a page; passages run back to back in ledger order from line 1; a passage's page is the
-      page its first line falls on
+      nothing stays open); a decision returning an edit to an earlier call makes it stand as that call did;
+      a decision given as the same call as another makes the same kind of call at this edit's own number
+  L0  (layout spec) the ledger lists flags in the order they were raised; `position` gives manuscript
+      order; a passage listed in more than one stretch is one passage whose stretches run on from each
+      other, and its page is the page its first line falls on
+  L1  30 lines a page; passages run back to back in manuscript order from line 1
   L2  a passage's length is its drafted lines plus the line change of every edit that stands accepted for
       it; a deferred or withdrawn edit changes nothing
   L3  a passage never falls below 1 line (held at 1, floored), and that line still pushes every later
@@ -41,24 +44,39 @@ GOLD = ROOT / "solution" / "files"
 LINES_PER_PAGE = 30
 HEADER = ["passage_id", "page_number", "verdict"]
 
-#: decision wording -> (kind, lines). kind: accept | defer | withdraw | revert:<reader>.
+#: decision wording -> (kind, lines). kind: accept | defer | withdraw | revert:<reader> | ditto | same:<code>.
 #: lines: the signed line change the decision gives, or None when it gives none.
 DECISIONS = {
     "Yes, take it.": ("accept", None),
     "Agreed.": ("accept", None),
     "Fine as proposed.": ("accept", None),
+    "Go ahead.": ("accept", None),
     "Yes, cut the whole sequence.": ("accept", None),
     "Yes, the whole interlude goes.": ("accept", None),
     "Author says go ahead.": ("accept", None),
+    "Take it, at the number Ines had.": ("accept", None),
     "Yes, but only five lines out, not seven.": ("accept", -5),
     "Yes, but six lines, not four.": ("accept", 6),
     "Yes, and take the next three lines with it: twelve out.": ("accept", -12),
+    "Cut, but six lines only.": ("accept", -6),
+    "Cut, but four lines only.": ("accept", -4),
+    "In, but two lines out, not four.": ("accept", -2),
     "Park until the author has read it.": ("defer", None),
     "On reflection, leave this for the author.": ("defer", None),
+    "Hold it.": ("defer", None),
+    "Leave it with the author.": ("defer", None),
     "No. The list of ship names stays out.": ("withdraw", None),
     "No. The author wants the interlude kept.": ("withdraw", None),
     "Withdrawn: the letter stays as drafted.": ("withdraw", None),
+    "Drop it.": ("withdraw", None),
+    "Not this time.": ("withdraw", None),
     "Back to Ines's call.": ("revert:Ines", None),
+    "As Ines had it.": ("revert:Ines", None),
+    "Ditto.": ("ditto", None),
+    "Same call as ED-15.": ("same:ED-15", None),
+    "Same call as ED-12.": ("same:ED-12", None),
+    "Same call as ED-24.": ("same:ED-24", None),
+    "Same call as ED-33.": ("same:ED-33", None),
 }
 STATE = {"accept": "ACCEPTED", "defer": "DEFERRED", "withdraw": "WITHDRAWN"}
 
@@ -86,8 +104,24 @@ def read_inputs(inp: Path = INP):
     return ledger, read_sheet("Log", inp)
 
 
+def passages(ledger, file_order=False, stretch_separate=False, stretch_overwrite=False):
+    """The passages in manuscript order as (passage_id, drafted_lines). Switches are wrong readings."""
+    rows = ledger if file_order else sorted(ledger, key=lambda r: int(r["position"]))
+    if stretch_separate:
+        return [(r["passage_id"], int(r["drafted_lines"])) for r in rows]
+    out: dict[str, int] = {}
+    for r in rows:
+        pid, n = r["passage_id"], int(r["drafted_lines"])
+        if pid in out and stretch_overwrite:
+            out[pid] = n
+        else:
+            out[pid] = out.get(pid, 0) + n
+    return list(out.items())
+
+
 def standing(log, withdrawn_as_deferred=False, ignore_revisions=False, revert_noop=False,
-             revert_to_proposed=False, first_line_only=False, first_read_only=False, every_line=False):
+             revert_to_proposed=False, first_line_only=False, first_read_only=False, every_line=False,
+             same_copies_number=False, ditto_is_accept=False):
     """Each edit's call after the whole Log: {edit_code: {passage_id, state, change}}.
 
     The switches are the declared wrong readings (README section 5); all False is the gold.
@@ -96,16 +130,18 @@ def standing(log, withdrawn_as_deferred=False, ignore_revisions=False, revert_no
     if first_read_only:
         second = min(l["logged_on"] for l in log if str(l["logged_on"]) >= "2026-09")
         log = [l for l in log if l["logged_on"] < second]
-    calls, history, extra = {}, {}, {}
+    calls, history, extra, line_state = {}, {}, {}, []
     for i, l in enumerate(log):
         code = l["edit_code"]
         kind, lines = DECISIONS[l["decision"]]
         if first_line_only and code in calls:
+            line_state.append(calls[code]["state"])
             continue
         prev = calls.get(code)
-        number = l["proposed_change"] if prev is None else prev["change"]
+        number = int(l["proposed_change"]) if prev is None else prev["change"]
         if kind.startswith("revert:"):
             if revert_noop:
+                line_state.append(prev["state"])
                 continue
             reader = kind.split(":", 1)[1]
             back = [h for h in history[code] if h["reader"] == reader][-1]
@@ -113,12 +149,21 @@ def standing(log, withdrawn_as_deferred=False, ignore_revisions=False, revert_no
             if revert_to_proposed:
                 call["change"] = int(history[code][0]["proposed"])
         else:
-            state = STATE[kind]
+            if kind == "ditto":
+                state = "ACCEPTED" if ditto_is_accept else line_state[-1]
+                change = number
+            elif kind.startswith("same:"):
+                target = calls[kind.split(":", 1)[1]]
+                state = target["state"]
+                change = target["change"] if same_copies_number else number
+            else:
+                state = STATE[kind]
+                change = number if (lines is None or ignore_revisions) else lines
             if state == "WITHDRAWN" and withdrawn_as_deferred:
                 state = "DEFERRED"
-            change = number if (lines is None or ignore_revisions) else lines
             call = {"passage_id": l["passage_id"], "state": state, "change": int(change)}
         calls[code] = call
+        line_state.append(call["state"])
         history.setdefault(code, []).append({"reader": l["reader"], "call": dict(call),
                                              "proposed": l["proposed_change"]})
         if every_line and call["state"] == "ACCEPTED":
@@ -131,19 +176,19 @@ def standing(log, withdrawn_as_deferred=False, ignore_revisions=False, revert_no
     return calls
 
 
-def layout(ledger, calls, no_floor=False, floor_takes_no_line=False, deferred_counts=False,
+def layout(order, calls, no_floor=False, floor_takes_no_line=False, deferred_counts=False,
            exclusive_end=False, geometry_first=False, row_per_edit=False):
     """Lay the passages out; returns (rows, results, notes). Switches are declared wrong readings."""
     edits: dict[str, list[dict]] = {}
     for code, c in calls.items():
         edits.setdefault(c["passage_id"], []).append(dict(c, code=code.split("#")[0]))
     units = []
-    for p in ledger:
-        mine = edits.get(p["passage_id"], [])
+    for pid, drafted in order:
+        mine = edits.get(pid, [])
         if row_per_edit and len(mine) > 1:
-            units += [(p["passage_id"], int(p["drafted_lines"]), [e]) for e in mine]
+            units += [(pid, drafted, [e]) for e in mine]
         else:
-            units.append((p["passage_id"], int(p["drafted_lines"]), mine))
+            units.append((pid, drafted, mine))
     rows, notes = [], {}
     counts = {"STRADDLES_BREAK": 0, "EDIT_DEFERRED": 0, "LENGTH_FLOORED": 0, "WHOLLY_ON_PAGE": 0}
     line = 1
@@ -167,7 +212,7 @@ def layout(ledger, calls, no_floor=False, floor_takes_no_line=False, deferred_co
             verdict = geo
         counts[verdict] += 1
         rows.append([pid, page_of(first), verdict])
-        notes[pid] = {"first": first, "last": first + length - 1, "length": length,
+        notes[pid] = {"first": first, "last": first + length - 1, "length": length, "drafted": drafted,
                       "edits": [f"{e['code']} {e['change']:+d} {e['state']}" for e in mine]}
         line = first + occupies
     results = {
@@ -180,26 +225,43 @@ def layout(ledger, calls, no_floor=False, floor_takes_no_line=False, deferred_co
     return rows, results, notes
 
 
+LEDGER_SWITCHES = {"file_order", "stretch_separate", "stretch_overwrite"}
+LOG_SWITCHES = {"withdrawn_as_deferred", "ignore_revisions", "revert_noop", "revert_to_proposed",
+                "first_line_only", "first_read_only", "every_line", "same_copies_number", "ditto_is_accept"}
+
+
 def solve(inp: Path = INP, **switches):
     """The whole task under one set of switches: (rows, results, notes)."""
     ledger, log = read_inputs(inp)
-    keys = {"withdrawn_as_deferred", "ignore_revisions", "revert_noop", "revert_to_proposed",
-            "first_line_only", "first_read_only", "every_line"}
-    calls = standing(log, **{k: v for k, v in switches.items() if k in keys})
-    return layout(ledger, calls, **{k: v for k, v in switches.items() if k not in keys})
+    order = passages(ledger, **{k: v for k, v in switches.items() if k in LEDGER_SWITCHES})
+    calls = standing(log, **{k: v for k, v in switches.items() if k in LOG_SWITCHES})
+    rest = {k: v for k, v in switches.items() if k not in LEDGER_SWITCHES | LOG_SWITCHES}
+    return layout(order, calls, **rest)
 
 
 def derive():
     ledger, log = read_inputs()
-    ids = [p["passage_id"] for p in ledger]
-    assert len(ids) == len(set(ids)), "ledger ids repeat"
+    positions = [int(r["position"]) for r in ledger]
+    assert len(positions) == len(set(positions)), "positions repeat"
+    order = passages(ledger)
+    ids = [pid for pid, _ in order]
+    stretches = {pid: [r for r in ledger if r["passage_id"] == pid] for pid in ids}
+    for pid, rows in stretches.items():
+        pos = sorted(int(r["position"]) for r in rows)
+        between = [int(r["position"]) for r in ledger if pos[0] < int(r["position"]) < pos[-1]
+                   and r["passage_id"] != pid]
+        assert not between, f"{pid}: another passage sits between its stretches"
     dates = [l["logged_on"] for l in log]
     assert dates == sorted(dates), "the Log is not in entry order"
     missing = sorted({l["decision"] for l in log} - set(DECISIONS))
     assert not missing, f"decisions with no declared meaning: {missing}"
     history: dict[str, list[dict]] = {}
-    for l in log:
+    for i, l in enumerate(log):
         assert l["passage_id"] in ids, f"{l['edit_code']}: names no ledger passage"
+        kind = DECISIONS[l["decision"]][0]
+        assert not (kind == "ditto" and i == 0), "Ditto. on the first line"
+        if kind.startswith("same:"):
+            assert kind.split(":")[1] in history, f"{l['edit_code']}: same-as an edit not yet logged"
         history.setdefault(l["edit_code"], []).append(l)
     for code, lines in history.items():
         assert len({x["passage_id"] for x in lines}) == 1, f"{code}: lines disagree on the passage"
@@ -207,27 +269,32 @@ def derive():
         assert all(x["proposed_change"] is None for x in lines[1:]), f"{code}: proposed change repeated"
 
     calls = standing(log)
-    rows, results, notes = layout(ledger, calls)
+    rows, results, notes = layout(order, calls)
 
     # the requester vouches for the Not in sheet ("lists every edit that isn't going into this pass")
     notin = sorted(r["edit_code"] for r in read_sheet("Not in"))
     assert notin == sorted(c for c, v in calls.items() if v["state"] != "ACCEPTED"), "Not in sheet is wrong"
 
     # design invariants: the cases the difficulty design (README section 5) depends on
-    drafted = {p["passage_id"]: int(p["drafted_lines"]) for p in ledger}
+    drafted = dict(order)
     kinds = {c: [DECISIONS[x["decision"]][0] for x in lines] for c, lines in history.items()}
+    assert sum(1 for s in stretches.values() if len(s) > 1) == 1, "expected exactly one two-stretch passage"
+    two = next(pid for pid, s in stretches.items() if len(s) > 1)
+    assert ledger.index(stretches[two][-1]) > len(ledger) - 5, f"{two}: second stretch not near the ledger's end"
     assert any(v["state"] == "WITHDRAWN" and kinds[c][0] == "accept"
-               and -history[c][0]["proposed_change"] == drafted[v["passage_id"]] for c, v in calls.items()), \
+               and -int(history[c][0]["proposed_change"]) == drafted[v["passage_id"]] for c, v in calls.items()), \
         "no exact-length cut accepted and later withdrawn"
     assert any(v["state"] == "DEFERRED" and kinds[c][0] == "accept"
-               and -history[c][0]["proposed_change"] == drafted[v["passage_id"]] for c, v in calls.items()), \
+               and -int(history[c][0]["proposed_change"]) == drafted[v["passage_id"]] for c, v in calls.items()), \
         "no exact-length cut accepted and later deferred"
     assert any(k[0] == "defer" and k[-1] == "accept" for k in kinds.values()), "no deferral later accepted"
     assert any(k[-1].startswith("revert") for k in kinds.values()), "no decision returning to an earlier call"
+    assert any(k[-1].startswith("same:") and calls[c]["state"] == "WITHDRAWN" for c, k in kinds.items()), \
+        "no same-as decision that withdraws"
+    assert any(k[-1] == "ditto" and calls[c]["state"] != "ACCEPTED" for c, k in kinds.items()), \
+        "no Ditto. that is not an acceptance"
     assert any(DECISIONS[x["decision"]][1] is not None for lines in history.values() for x in lines[1:]), \
         "no revision on a later line"
-    assert any(len(k) > 1 and set(k) == {"accept"} and DECISIONS[history[c][-1]["decision"]][1] is None
-               for c, k in kinds.items()), "no accepted edit re-confirmed unchanged"
     multi = [pid for pid in drafted if sum(1 for v in calls.values()
                                            if v["passage_id"] == pid and v["state"] == "ACCEPTED") > 1]
     assert any(notes[pid]["length"] == 1 and drafted[pid] > 1 for pid in multi), \

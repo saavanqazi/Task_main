@@ -12,11 +12,14 @@ described in words only.
 
 An author has to hand a manuscript back to the press with a page number against every passage they flagged,
 after two edit reads. The agent gets four files:
-- the passage ledger: 30 flagged passages in manuscript order, with drafted line counts;
+- the flag ledger, `passage_ledger.csv`: 41 flags in the order they were raised, each with the passage it
+  flags, its `position` in the manuscript, its drafted lines and a note; the second read's seven flags are
+  appended at the bottom, one of them the second stretch of a passage (PS-16) flagged on the first read;
 - the edit register, `edit_register.xlsx`, with three sheets:
-  - `Log`: 32 decisions on 24 edits, each with date, edit, passage, description, the proposed line change
-    (first line of an edit only), reader, and **the decision in the reader's own words**;
-  - `About`: how the log is kept, and what the three kinds of call mean;
+  - `Log`: 58 decisions on 45 edits, each with date, edit, passage, description, the proposed line change
+    (first line of an edit only), reader, and **the decision in the reader's own words** (30 wordings);
+  - `About`: how the log is kept, what the three kinds of call mean, and how a return, a "Ditto." and a
+    "Same call as" decision read;
   - `Not in`: Tomas's list of the edits not going into this pass;
 - the press's layout spec;
 - the submission format.
@@ -24,37 +27,29 @@ after two edit reads. The agent gets four files:
 It delivers the page register as a CSV (one row per passage: the page the passage now starts on and how it
 sits there) and five roll-up figures in `results.json`.
 
-The work is real repagination after an editorial query round:
-- **Read every decision.** An edit's latest decision is its call, and a call is one of three:
-  - accepted: it goes in, with the number of lines the decision gives, or else its number as it stood;
-  - deferred: parked for the author; it stays open against the passage;
-  - withdrawn: turned down; nothing stays open.
-
-  A decision can also return an edit to an earlier call.
-- Sum every accepted edit per passage.
-- Floor a passage at 1 line, and keep that line pushing later passages down.
-- Record each passage as floored, carrying a deferred edit, crossing a break or sitting wholly on a page, in
-  that priority.
+The work is real repagination after an editorial query round: put the flags into manuscript order and join
+the two-stretch passage; read every decision (an edit's latest decision is its call: accepted, deferred, or
+withdrawn; revised counts are given in words; "Ditto." and "Same call as ED-xx." take another decision's
+kind of call; "Back to Ines's call." returns to an earlier one); sum every accepted edit per passage; floor at
+1 line; record each passage as floored, carrying a deferred edit, crossing a break or wholly on a page.
 
 **The population is not handed over.** The instruction names no count, page or passage.
 
-**Why it is hard.** The deciding facts are in prose, one decision at a time, so they cannot be parsed and
-cannot be checked against anything in the workbook:
-- The 32 decisions use 15 wordings.
-- Three decisions revise a count in words: "Yes, but only five lines out, not seven.", "Yes, but six lines,
-  not four." and "Yes, and take the next three lines with it: twelve out."
-- One edit (ED-15, PS-20) is accepted at a revised count, parked, then returned: "Back to Ines's call."
-- Two accepted cuts that were each exactly as long as their passage are later reversed in different ways.
-  PS-04's is parked ("On reflection, leave this for the author.", so deferred). PS-24's is turned down ("No.
-  The author wants the interlude kept.", so withdrawn: no deferred mark, and the passage is recorded by its
-  geometry).
-- A parked addition is accepted ("Author says go ahead.").
-- PS-07's two accepted cuts together floor it.
+**Why it is hard.** Two things at once, neither of which a rule-following script can do for the model:
+- **58 decisions must each be read and encoded by hand**, with lookups: three revise a count in words, six
+  say "Ditto." (the kind of call on the line above, whichever edit that was), four say "Same call as
+  ED-xx." (that edit's kind of call as it then stands), three return to an earlier call, and the rest use
+  fourteen other wordings for accept, park and turn down. Every GLM-5.2 run in builds v2-v5 encoded the
+  decisions into a dict by hand and checked nothing against them but its own reading; one slip in 58 is
+  a 0 under the core gate. There are no state columns to parse and no helper that confirms a reading.
+- **The ledger's shape.** It is in flagging order, not manuscript order (`position` gives that), and PS-16
+  is listed in two stretches, the second appended near the bottom under the same id. The definition sits
+  in the spec as one clause and in the submission format as a parenthetical, as the reference's did; the
+  requester's lead is literally true ("every line in it is a stretch I flagged, and none has been merged or
+  dropped").
 
-The deliverable has only four verdicts, and three calls have to be mapped onto them. The requester's lead
-about the `Not in` sheet is literally true ("lists every edit that isn't going into this pass";
-`derive_gold.py` asserts it). That sheet mixes deferred and withdrawn edits with no state column, so a run
-that checks its work against it confirms the binary "not in = deferred" reading.
+The deliverable has four verdicts and three calls have to be mapped onto them; the `Not in` sheet mixes
+deferred and withdrawn edits with no state column, and the requester's lead about it is literally true.
 
 ## 2. Departures from the mined version
 
@@ -65,14 +60,14 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 | file | was | now | why |
 |---|---|---|---|
-| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the register described as "the edit register Ines and Tomas kept through both reads", its Log as "every decision either of them made on an edit, in their own words", "nothing has been struck from it", and the lead "Tomas's Not in sheet lists every edit that isn't going into this pass"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (no line was deleted; the Not in sheet equals the edits whose call is not accepted, asserted by derive_gold.py) |
-| `environment/input/passage_ledger.csv` | 12 passages, `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none) | 30 passages, `passage_id,drafted_lines` | the ledger no longer does the join; at 30 passages and 29 log lines the work is done in code, not by eye; PS-26 ends on line 360, the last line of page 12, which separates an off-by-one last-line reading |
-| `environment/input/edit_register.csv` → `edit_register.xlsx` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook: `Log` (32 dated decisions on 24 edits, in the reader's words, `proposed_change` on each edit's first line only; 18 first-read decisions by Ines, 14 second-read decisions by Tomas), `About` (the log's keeping and the three calls: accepted / deferred / withdrawn, and returns to an earlier call), `Not in` (Tomas's list of edits not going in, no state column) | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the Log |
-| `environment/input/layout_spec.md` | "plus the line change of the edit proposed for it"; "A passage whose edit was deferred"; "Where an accepted edit would take it under that" | "plus the line change of every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; "A passage with an edit that stands deferred"; a pointer to the register's About sheet for the log and the three calls | definitions where the data lives (FIX-2), as the reference's About sheet does |
-| `environment/input/submission_format.md` | "One row per record, keyed by `passage_id`" and "in the order the file lists them" (order ungraded); a thousands-separator / currency clause for page numbers | "One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the ledger's own form"; "`page_number` … a plain whole number" | P6 over-specification: order was demanded but never graded; the currency clause did not fit page numbers |
+| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the ledger described as "in the order I flagged them, with where each sits in the manuscript; every line in it is a stretch I flagged, and none has been merged or dropped"; the register as "the edit register Ines and Tomas kept through both reads", its Log as "every decision either of them made on an edit, in their own words", "nothing has been struck from it", and "Tomas's Not in sheet lists every edit that isn't going into this pass"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (every ledger line is one flagged stretch and none was merged; no log line was deleted; the Not in sheet equals the edits whose call is not accepted, asserted by derive_gold.py) |
+| `environment/input/passage_ledger.csv` | 12 passages, `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none), in manuscript order | 41 flags over 40 passages, `passage_id,position,drafted_lines,note`, in flagging order; the second read's flags appended, among them PS-16's second stretch (position 165, "the rest of the scene; runs straight on") | the ledger no longer does the join; manuscript order and the two-stretch passage are the reference's unit-of-analysis trap (§5); PS-11 ends on line 150, the last line of page 5 |
+| `environment/input/edit_register.csv` → `edit_register.xlsx` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook: `Log` (58 dated decisions on 45 edits in the readers' words, `proposed_change` on each edit's first line only; 26 first-read decisions by Ines, 32 second-read decisions by Tomas), `About` (the log's keeping; the three calls; returns, "Ditto." and "Same call as"), `Not in` (Tomas's list of edits not going in, no state column) | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the Log |
+| `environment/input/layout_spec.md` | "The passages run one after another in the order the ledger lists them"; "plus the line change of the edit proposed for it"; "A passage whose edit was deferred" | "`passage_ledger.csv` lists the flags in the order they were raised; `position` gives the manuscript order"; "A passage listed in more than one stretch is one passage: its stretches run on from each other, and its drafted lines are theirs together"; "every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; a pointer to the register's About sheet | definitions where the data lives (FIX-2), as the reference's C4 and About sheet do |
+| `environment/input/submission_format.md` | "One row per record, keyed by `passage_id`" and "in the order the file lists them" (order ungraded); a thousands-separator / currency clause for page numbers | "One row per passage (a passage is everything `passage_ledger.csv` lists under one `passage_id`), in any order, with `passage_id` in the ledger's own form"; "`page_number` … a plain whole number" | P6 over-specification: order was demanded but never graded; the currency clause did not fit page numbers |
 | `environment/Dockerfile` | `python:3.12-slim-bookworm` unpinned | pinned by digest `@sha256:4766d8…58a2` (same base as the accepted Task_17 bundle) | ENV-3 |
 | `task.toml` | `artifacts = []`, no reward shape | two artifact paths; `reward_shape`; description rewritten | TOML-4/5, HAR-2, PKG-14 |
-| `tests/verifier.json` | 22 checks, all core: `register_exists`, `results_exists`, `register_row_count`, `ps01_pin`…`ps12_pin` (regex, ungraded order), core `results_keyset`, five `result_*` figures | 9 checks (8 core, 1 incidental), §3; every pin read from the gold files by `tools/build_verifier.py`; every `why_justification` quotes its sentence verbatim | P0 #1, VER-21, DIS-2, GLD-11 |
+| `tests/verifier.json` | 22 checks, all core: `register_exists`, `results_exists`, `register_row_count`, `ps01_pin`…`ps12_pin` (regex, ungraded order), core `results_keyset`, five `result_*` figures | 13 checks (12 core, 1 incidental), §3; every pin read from the gold files by `tools/build_verifier.py`; every `why_justification` quotes its sentence verbatim | P0 #1, VER-21, DIS-2, GLD-11 |
 | `tests/rl_world_verifiers/` | the b52 engine (no `table_equals` / `object_equals`) | the engine vendored in the accepted Task_17 bundle (compound comparators, equivalence contract) | the row and figure checks need `table_equals` / `object_equals` |
 | `tests/test.sh`, `score.py`, `test_outputs.py` | pytest + a score over all checks; no guards | the accepted Task_17 harness with this task's deliverables: symlink/size guard and snapshot, controlled interpreter, input-integrity evidence, core gate + weighted fraction, output-truncation guard | HAR-1..11, VER-25, ENV-5 |
 | `tests/` (new) | none | `check_inputs.py`, `input_hashes.json`, `derive_gold.py`, `discrimination.py` (author tools, not on the reward path) | FIX-11, GLD-11, VER-24 |
@@ -82,16 +77,17 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 ## 3. Declarations
 
-- **Reward shape:** core-gated weighted fraction over 9 equally weighted checks (as `task.toml`
+- **Reward shape:** core-gated weighted fraction over 13 equally weighted checks (as `task.toml`
   `reward_shape` and `tests/score.py`): any failed core check scores 0; otherwise the passing weight; 1.0
   only when every check passes.
 - **Checks by kind:**
-  - core, deterministic (8): `register_header`; five trap rows isolated, each its own check:
-    `register_trap_ps04` (exact cut accepted, then parked), `register_trap_ps07` (two accepted cuts floor it),
-    `register_trap_ps10` (parked addition accepted), `register_trap_ps20` (revised, parked, returned to the
-    earlier call), `register_trap_ps24` (exact cut accepted, then withdrawn); `register_rows` (the other 25
-    passages cell by cell, row set locked to the 30 ledger ids, columns closed); `results_figures` (five
-    figures, key set open).
+  - core, deterministic (12): `register_header`; nine trap rows isolated, each its own check:
+    `register_trap_ps04` (exact cut accepted, then parked), `_ps07` (two accepted cuts floor it), `_ps10`
+    (parked addition accepted), `_ps16` (the two-stretch passage), `_ps17` ("Same call as" a withdrawn
+    edit), `_ps20` (revised, parked, returned to the earlier call), `_ps24` (exact cut accepted, then
+    withdrawn), `_ps31` ("Ditto." after a park), `_ps34` (parked, then taken "at the number Ines had");
+    `register_rows` (the other 31 passages cell by cell, row set locked to the 40 ledger ids, columns
+    closed); `results_figures` (five figures, key set open).
   - incidental, deterministic (1): `results_keyset` (no extra keys).
 - **No judge.** Every graded value is a number or a closed label; there is no prose deliverable.
 - **Network mode:** `public`, as mined (the agent harness reaches its model through it). The verifier
@@ -104,111 +100,129 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
   gold: **gold agrees with the inputs, and every verifier pin agrees with the gold**. It also asserts the
   fixture's design invariants: one passage with two edits, the second on the register's last line; a single
   cut as long as its passage; a passage ending on a page's last line.
-- Key: 30 passages; the manuscript runs to line 421; `straddling_passage_count` 11, `deferred_edit_count` 4,
-  `length_floored_count` 1, `wholly_on_page_count` 14, `final_page_count` 15.
+- Key: 40 passages in manuscript order; the manuscript runs to line 539; `straddling_passage_count` 12,
+  `deferred_edit_count` 7, `length_floored_count` 1, `wholly_on_page_count` 20, `final_page_count` 18.
 
-| passage | drafted | edits as they stand (call after the latest decision) | lines | page | verdict |
+| passage (manuscript order) | drafted | edits as they stand (call after the latest decision) | lines | page | verdict |
 |---|---|---|---|---|---|
 | PS-01 | 12 | ED-01 +6 ACCEPTED | 1-18 | 1 | WHOLLY_ON_PAGE |
 | PS-02 | 18 | ED-20 -2 ACCEPTED | 19-34 | 1 | STRADDLES_BREAK |
 | PS-03 | 9 | ED-02 -3 ACCEPTED | 35-40 | 2 | WHOLLY_ON_PAGE |
 | PS-04 | 22 | ED-03 -22 DEFERRED | 41-62 | 2 | EDIT_DEFERRED |
-| PS-05 | 12 | none | 63-74 | 3 | WHOLLY_ON_PAGE |
-| PS-06 | 7 | ED-04 +6 DEFERRED | 75-81 | 3 | EDIT_DEFERRED |
-| PS-07 | 25 | ED-05 -21 ACCEPTED, ED-09 -5 ACCEPTED | 82-82 | 3 | LENGTH_FLOORED |
-| PS-08 | 11 | ED-06 +2 ACCEPTED | 83-95 | 3 | STRADDLES_BREAK |
-| PS-09 | 16 | none | 96-111 | 4 | WHOLLY_ON_PAGE |
-| PS-10 | 8 | ED-07 +14 ACCEPTED | 112-133 | 4 | STRADDLES_BREAK |
-| PS-11 | 17 | ED-08 -4 ACCEPTED | 134-146 | 5 | WHOLLY_ON_PAGE |
-| PS-12 | 13 | none | 147-159 | 5 | STRADDLES_BREAK |
-| PS-13 | 20 | ED-10 -6 ACCEPTED, ED-11 +3 ACCEPTED | 160-176 | 6 | WHOLLY_ON_PAGE |
-| PS-14 | 6 | none | 177-182 | 6 | STRADDLES_BREAK |
-| PS-15 | 15 | ED-12 +5 WITHDRAWN | 183-197 | 7 | WHOLLY_ON_PAGE |
-| PS-16 | 24 | ED-13 -12 ACCEPTED | 198-209 | 7 | WHOLLY_ON_PAGE |
-| PS-17 | 15 | none | 210-224 | 7 | STRADDLES_BREAK |
-| PS-18 | 19 | ED-14 +4 DEFERRED | 225-243 | 8 | EDIT_DEFERRED |
-| PS-19 | 12 | ED-21 +3 DEFERRED | 244-255 | 9 | EDIT_DEFERRED |
-| PS-20 | 27 | ED-15 -5 ACCEPTED | 256-277 | 9 | STRADDLES_BREAK |
-| PS-21 | 9 | none | 278-286 | 10 | WHOLLY_ON_PAGE |
-| PS-22 | 14 | ED-16 +2 ACCEPTED | 287-302 | 10 | STRADDLES_BREAK |
-| PS-23 | 23 | none | 303-325 | 11 | WHOLLY_ON_PAGE |
-| PS-24 | 11 | ED-17 -11 WITHDRAWN | 326-336 | 11 | STRADDLES_BREAK |
-| PS-25 | 16 | ED-18 +6 ACCEPTED | 337-358 | 12 | WHOLLY_ON_PAGE |
-| PS-26 | 7 | ED-24 +3 WITHDRAWN | 359-365 | 12 | STRADDLES_BREAK |
-| PS-27 | 21 | ED-22 -4 ACCEPTED | 366-382 | 13 | WHOLLY_ON_PAGE |
-| PS-28 | 13 | ED-19 -5 ACCEPTED | 383-390 | 13 | WHOLLY_ON_PAGE |
-| PS-29 | 10 | ED-23 +2 ACCEPTED | 391-402 | 14 | WHOLLY_ON_PAGE |
-| PS-30 | 19 | none | 403-421 | 14 | STRADDLES_BREAK |
+| PS-05 | 12 | ED-44 -3 WITHDRAWN | 63-74 | 3 | WHOLLY_ON_PAGE |
+| PS-35 | 9 | ED-33 -4 ACCEPTED | 75-79 | 3 | WHOLLY_ON_PAGE |
+| PS-06 | 7 | ED-04 +6 DEFERRED | 80-86 | 3 | EDIT_DEFERRED |
+| PS-07 | 25 | ED-05 -21 ACCEPTED, ED-09 -5 ACCEPTED | 87-87 | 3 | LENGTH_FLOORED |
+| PS-08 | 11 | ED-06 +2 ACCEPTED | 88-100 | 3 | STRADDLES_BREAK |
+| PS-09 | 16 | ED-39 +4 ACCEPTED | 101-120 | 4 | WHOLLY_ON_PAGE |
+| PS-10 | 8 | ED-07 +14 ACCEPTED | 121-142 | 5 | WHOLLY_ON_PAGE |
+| PS-11 | 17 | ED-08 -4 ACCEPTED | 143-155 | 5 | STRADDLES_BREAK |
+| PS-12 | 13 | ED-32 +3 WITHDRAWN | 156-168 | 6 | WHOLLY_ON_PAGE |
+| PS-36 | 14 | ED-34 +5 DEFERRED | 169-182 | 6 | EDIT_DEFERRED |
+| PS-13 | 20 | ED-10 -6 ACCEPTED, ED-11 +3 ACCEPTED | 183-199 | 7 | WHOLLY_ON_PAGE |
+| PS-14 | 6 | ED-41 +2 WITHDRAWN | 200-205 | 7 | WHOLLY_ON_PAGE |
+| PS-15 | 15 | ED-12 +5 WITHDRAWN | 206-220 | 7 | STRADDLES_BREAK |
+| PS-16 | 33 | ED-13 -12 ACCEPTED | 221-241 | 8 | STRADDLES_BREAK |
+| PS-17 | 15 | ED-40 -7 WITHDRAWN | 242-256 | 9 | WHOLLY_ON_PAGE |
+| PS-18 | 19 | ED-14 +4 DEFERRED | 257-275 | 9 | EDIT_DEFERRED |
+| PS-19 | 12 | ED-21 +3 DEFERRED | 276-287 | 10 | EDIT_DEFERRED |
+| PS-37 | 6 | ED-35 -2 WITHDRAWN | 288-293 | 10 | WHOLLY_ON_PAGE |
+| PS-20 | 27 | ED-15 -5 ACCEPTED | 294-315 | 10 | STRADDLES_BREAK |
+| PS-21 | 9 | ED-30 +1 ACCEPTED | 316-325 | 11 | WHOLLY_ON_PAGE |
+| PS-22 | 14 | ED-16 +2 ACCEPTED | 326-341 | 11 | STRADDLES_BREAK |
+| PS-23 | 23 | ED-31 -2 ACCEPTED | 342-362 | 12 | STRADDLES_BREAK |
+| PS-24 | 11 | ED-17 -11 WITHDRAWN | 363-373 | 13 | WHOLLY_ON_PAGE |
+| PS-25 | 16 | ED-18 +6 ACCEPTED | 374-395 | 13 | STRADDLES_BREAK |
+| PS-26 | 7 | ED-24 +3 WITHDRAWN | 396-402 | 14 | WHOLLY_ON_PAGE |
+| PS-27 | 21 | ED-22 -4 ACCEPTED | 403-419 | 14 | WHOLLY_ON_PAGE |
+| PS-38 | 18 | ED-36 -4 ACCEPTED, ED-45 +3 ACCEPTED | 420-436 | 14 | STRADDLES_BREAK |
+| PS-28 | 13 | ED-19 -5 ACCEPTED | 437-444 | 15 | WHOLLY_ON_PAGE |
+| PS-29 | 10 | ED-23 +2 ACCEPTED | 445-456 | 15 | STRADDLES_BREAK |
+| PS-30 | 19 | ED-29 -9 WITHDRAWN | 457-475 | 16 | WHOLLY_ON_PAGE |
+| PS-39 | 12 | ED-37 +4 ACCEPTED | 476-491 | 16 | STRADDLES_BREAK |
+| PS-31 | 14 | ED-25 -6 ACCEPTED, ED-42 +2 DEFERRED | 492-499 | 17 | EDIT_DEFERRED |
+| PS-32 | 8 | ED-26 +3 ACCEPTED | 500-510 | 17 | WHOLLY_ON_PAGE |
+| PS-33 | 17 | ED-27 -5 ACCEPTED, ED-43 -6 ACCEPTED | 511-516 | 18 | WHOLLY_ON_PAGE |
+| PS-40 | 10 | ED-38 -3 DEFERRED | 517-526 | 18 | EDIT_DEFERRED |
+| PS-34 | 11 | ED-28 +2 ACCEPTED | 527-539 | 18 | WHOLLY_ON_PAGE |
 
 - The interpretation key: every wording in the Log and its declared meaning is `DECISIONS` in
-  `tests/derive_gold.py` (15 wordings: 6 accept as they stand, 3 accept at a revised count, 2 defer,
-  3 withdraw, 1 return to Ines's call).
+  `tests/derive_gold.py` (30 wordings: 8 accept as they stand, 6 accept at a revised count, 4 defer,
+  5 withdraw, 2 return to Ines's call, "Ditto.", and 4 "Same call as ED-xx.").
 - Hand checks of the deciding rows (GLD-4):
-  - **PS-04:** ED-03 (−22) was accepted, then "On reflection, leave this for the author." It stands deferred,
-    so PS-04 keeps 22 lines, 41-62, starting on page 2: EDIT_DEFERRED.
-  - **PS-07:** ED-05 −21 and ED-09 −5 give 25 − 26 = −1, so it is held at 1 line, on line 82, page 3.
-  - **PS-10:** ED-07 +14 was parked, then "Author says go ahead." That gives 22 lines,
-    112-133, from page 4 to page 5: straddles.
-  - **PS-20:** ED-15 was proposed at −7 and accepted by Ines at −5, then parked by Tomas, then "Back to
-    Ines's call." It stands accepted at −5, so 22 lines, 256-277: straddles, page 9.
-  - **PS-24:** ED-17 (−11 = its whole length) was accepted, then "No. The author wants the interlude kept."
-    It stands withdrawn, so PS-24 keeps 11 lines, 326-336, from page 11 to page 12,
-    and is not deferred: STRADDLES_BREAK.
-  - **PS-28:** ends on line 390 = 13 × 30, so it sits wholly on page 13.
+  - **PS-16:** two stretches, 24 + 9 = 33 drafted lines (positions 160 and 165); ED-13 stands accepted at
+    −12 ("Yes, and take the next three lines with it: twelve out."), so 21 lines,
+    221-241: STRADDLES_BREAK, page 8.
+  - **PS-17:** ED-40 (−7) was "Go ahead." then "Same call as ED-24."; ED-24 stands withdrawn, so ED-40 stands
+    withdrawn: PS-17 keeps 15 lines, 242-256, and is not deferred.
+  - **PS-31:** ED-42 (+2) has one decision, "Ditto.", on the line after "Leave it with the author." (ED-38):
+    it stands deferred, so PS-31 is recorded EDIT_DEFERRED at ED-25's −6 (accepted at "Cut, but six lines
+    only.", parked, then "As Ines had it.").
+  - **PS-34:** ED-28 (+2) was "Leave it with the author." then "Take it, at the number Ines had.": accepted
+    at +2, 13 lines, 527-539.
+  - **PS-04, PS-07, PS-10, PS-20, PS-24:** as in build v5 (parked exact cut; two cuts floor it; parked
+    addition accepted; revised, parked, returned; exact cut withdrawn), now at lines
+    41, 87, 121, 294 and 363.
+  - **PS-11:** ends on line 155 = 5 × 30, so it sits wholly on page 5.
 
 ## 5. Difficulty design (declared before the measuring battery)
 
-**Crux: the call has to be read, not parsed, and there are three of them** (the reference's pattern: the
-definition sits on an About sheet, and a helper sheet the requester truthfully vouches for corroborates the
-wrong reading).
-- Every edit's standing call comes from prose decisions: revised counts in words, a return to an earlier
-  call, and parks and turn-downs of earlier acceptances.
-- The About sheet defines three calls. The deliverable, the instruction ("the edits we accepted") and the
-  `Not in` sheet all present the question as binary.
-- A run that maps "not going in" to deferred marks withdrawn PS-15, PS-24 and PS-26 as EDIT_DEFERRED. That
-  output agrees with the `Not in` sheet, gives 30 rows with the figures summing to 30, and passes every check
-  a run can apply to itself.
+**Two cruxes, stacked.** Builds v2-v5 each added one rule and each was solved 5/5: every run read all inputs,
+turned each rule into a checklist item, encoded the data by hand, computed in a script and cross-checked
+against any helper. v6 keeps v5's three-way prose calls and adds the two things that method does not cover.
 
-Why this and not a stated rule: in builds v2-v4 every GLM-5.2 run (15 of 15) turned each written rule into a
-checklist item, applied it in one script, and cross-checked its result against any helper sheet (in v4 it used
-the Tally to confirm the correct method). Here no helper can confirm the three-way reading, and no script can
-read the decisions for the model.
+1. **Hand-encoding load with lookups and no oracle to check against.** 58 decisions in 30 wordings, of
+   which ten are references ("Ditto." six times, "Same call as ED-xx." four times) that resolve to another
+   line's or another edit's kind of call at that moment, two are returns, and six give a revised number in
+   words. The model has to produce one 45-entry mapping by hand; nothing in the workbook confirms it, and the
+   `Not in` sheet only corroborates the binary misreading. One wrong entry fails a core check.
+2. **Unit of analysis in the ledger** (the reference's mechanism). The ledger is in flagging order with a
+   `position` column, and PS-16 is listed twice, the second stretch near the bottom under the same id, with
+   the definition in one spec clause and one submission-format parenthetical and the lead literally true.
 
 Expected wrong readings, each recomputed from the inputs by `tests/discrimination.py` with the gold's own
-solver. All thirteen readings, gold included, give pairwise-distinct deliverables:
+solver. All eighteen readings, gold included, give pairwise-distinct deliverables:
 
 | id | reading | checks that fail |
 |---|---|---|
-| W1 | withdrawn read as deferred (the `Not in` sheet taken as "parked") | `register_trap_ps24`, `register_rows`, `results_figures` |
-| W2 | revised counts ignored (the proposed change kept) | `register_rows`, `results_figures` |
-| W3 | "Back to Ines's call." ignored (the parked call stands) | `register_trap_ps20`, `register_trap_ps24`, `register_rows`, `results_figures` |
-| W4 | "Back to Ines's call." read as the proposed −7 | `register_rows`, `results_figures` |
-| W5 | each edit read from its first decision | all five traps, `register_rows`, `results_figures` |
-| W6 | the first read only | all five traps, `register_rows`, `results_figures` |
-| W7 | every accepting line applied again | four traps, `register_rows`, `results_figures` |
-| W8 | no floor | `register_trap_ps07`, `register_rows`, `results_figures` |
-| W9 | floored, but the held line not counted | `register_rows`, `results_figures` |
-| W10 | deferred edits counted in the length | four traps, `register_rows`, `results_figures` |
-| W11 | the last line taken one past the passage | `register_rows`, `results_figures` |
-| W12 | geometry ranked above a deferred edit | `register_trap_ps04`, `register_rows`, `results_figures` |
+| W1 | withdrawn read as deferred (the `Not in` sheet taken as "parked") | `_ps17`, `_ps24`, `register_rows`, `results_figures` |
+| W2 | revised counts ignored (the proposed change kept) | `_ps10`, `_ps24`, `register_rows`, `results_figures` |
+| W3 | returns to Ines's call ignored (the later call stands) | `_ps20`, `_ps34`, `register_rows`, `results_figures` |
+| W4 | a return to Ines's call read as the proposed number | `register_rows` |
+| W5 | each edit read from its first decision | eight traps, `register_rows`, `results_figures` |
+| W6 | the first read only | nine traps, `register_rows`, `results_figures` |
+| W7 | every accepting line applied again | eight traps, `register_rows`, `results_figures` |
+| W8 | "Same call as" copying the other edit's number | `_ps34`, `results_figures` |
+| W9 | "Ditto." read as an acceptance | `_ps31`, `register_rows`, `results_figures` |
+| W10 | the ledger laid out in file order | seven traps, `register_rows`, `results_figures` |
+| W11 | each ledger stretch its own passage (PS-16 twice) | `_ps16`, `_ps17`, `_ps24`, `register_rows`, `results_figures` |
+| W12 | a later stretch overwriting the first (PS-16 = 9 lines) | six traps, `register_rows`, `results_figures` |
+| W13 | no floor | `_ps07`, `_ps10`, `_ps16`, `_ps17`, `register_rows`, `results_figures` |
+| W14 | floored, but the held line not counted | `_ps10`, `_ps16`, `register_rows`, `results_figures` |
+| W15 | deferred edits counted in the length | five traps, `register_rows`, `results_figures` |
+| W16 | the last line taken one past the passage | `register_rows`, `results_figures` |
+| W17 | geometry ranked above a deferred edit | `_ps04`, `register_rows`, `results_figures` |
+
+Under W1, W9, W10 and W11 the output passes every check a run can apply to itself (W1 also agrees with the
+`Not in` sheet); under W11 the register has 41 rows, one per ledger line, which the lead invites.
 
 ## 6. Probes and solvers
 
-- **Discrimination** (`tests/discrimination.py`, deterministic): **41 of 41 as expected**. 11 equivalence
+- **Discrimination** (`tests/discrimination.py`, deterministic): **50 of 50 as expected**. 11 equivalence
   variants pass: row shuffle, JSON key order, JSON figures as N.0, quoted fields, CRLF, no trailing newline,
-  BOM, page numbers as N.0, padded fields, lower-case verdicts, and an extra scratch file. 18 breaking variants
+  BOM, page numbers as N.0, padded fields, lower-case verdicts, and an extra scratch file. 22 breaking variants
   fail on their own check: a page off, a verdict wrong, a row deleted, appended or duplicated, an extra column,
-  each of the five trap rows wrong, a figure off by one, empty deliverables, each deliverable deleted, a bare
-  header with `{}`, figures as a list, and an extra JSON key on `results_keyset`. The 12 wrong readings W1-W12
+  each of the nine trap rows wrong, a figure off by one, empty deliverables, each deliverable deleted, a bare
+  header with `{}`, figures as a list, and an extra JSON key on `results_keyset`. The 17 wrong readings W1-W17
   fail as declared.
 - **Reward floor** (shipped `test.sh`): empty workspace 0.0; bare header + `{}` 0.0.
 
 ## 7. Environment tests
 
-Run with the shipped `test.sh` in the task image: gold 1.0 (9/9 checks, 17 pytest items passed); gold +
+Run with the shipped `test.sh` in the task image: gold 1.0 (13/13 checks, 21 pytest items passed); gold +
 unrelated scratch files 1.0; both deliverables replaced by symlinks to the gold 0.0 (guard); planted
 `conftest.py`, `sitecustomize.py` and `usercustomize.py` beside a CSV with one wrong page 0.0 (the plants
-have no effect; `register_rows` fails); extra key in `results.json` 0.888889 (incidental only); nop 0.0;
+have no effect; `register_rows` fails); extra key in `results.json` 0.923077 (incidental only); nop 0.0;
 `solve.sh` (oracle path) 1.0 with `agent/trajectory.json` written. `input_integrity.json` reports the inputs
 intact in every run.
 
@@ -217,7 +231,7 @@ intact in every run.
 **PENDING.** Filled in from the GLM-5.2 battery (opencode 1.18.18, `glmproxy/glm-5.2`): one job, every run on
 one `task_checksum`, lane pre-registered as the first five by `started_at`. Each run is classified with
 `python3 tools/triage_trials.py <job_dir>` (repository root), which names the reading its deliverables match
-(GOLD or W1-W12) and lists the rows it got wrong. The table layout to fill in:
+(GOLD or W1-W17) and lists the rows it got wrong. The table layout to fill in:
 
 | started (UTC) | trial | reward | slot | checks | what happened |
 |---|---|---|---|---|---|
@@ -235,7 +249,11 @@ one `task_checksum`, lane pre-registered as the first five by `started_at`. Each
   a correct first-read Tally vouched for. GLM solved it 5/5 (job `b52a9-glm5x-run4`). Every run used the Tally
   to cross-check its log handling ("Tally validation passes with 0 mismatches"), so the helper confirmed the
   right method.
-- **v5, current:** decisions in prose with three calls; a helper that corroborates the binary misreading.
+- **v5:** decisions in prose with three calls; a helper that corroborates the binary misreading. GLM solved it
+  5/5 (job `b52a9-glm5x-run5`): every run hand-encoded the 32 decisions into a dict with a rationale each,
+  computed in a script, and re-checked against the `Not in` sheet.
+- **v6, current:** the same, at 58 decisions with "Ditto." and "Same call as" references and no confirming helper,
+  plus the reference's unit-of-analysis trap in the ledger (flagging order; PS-16 in two stretches).
 
 ## 9. Isolation proof
 
@@ -243,7 +261,7 @@ In a fresh container built from `environment/` (network off): a whole-filesystem
 `test.sh`, `verifier.json`, `score.py`, `test_outputs.py`, `derive_gold.py`, `discrimination.py`,
 `golden_trajectory.json`, `input_hashes.json` and every deliverable name returns nothing outside Python's
 own site-packages; `/tests`, `/solution` and `/logs/verifier` are absent; no file contains the gold-only
-string `PS-24,11,STRADDLES_BREAK`, while the positive control `ED-03` is found in the edit register. The
+string `PS-16,8,STRADDLES_BREAK`, while the positive control `ED-40` is found in the edit register. The
 Dockerfile copies `input/` only. Inputs are read-only in the image (advisory: root can still write), and
 nothing on the grading path reads `/app/input`; `check_inputs.py` records their hashes as evidence only.
 

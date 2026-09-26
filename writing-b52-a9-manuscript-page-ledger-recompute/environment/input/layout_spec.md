@@ -5,15 +5,17 @@ passage in `passage_ledger.csv` gets one row in the page register.
 
 ## How the manuscript is laid out
 
-A page holds 30 lines. The passages run one after another in the order the
-ledger lists them, the first passage beginning on the first line of the manuscript, and
-each passage beginning on the line after the one before it ends. A passage's page is the
-page its first line falls on.
+A page holds 30 lines. `passage_ledger.csv` lists the flags in the order they were
+raised; `position` gives the manuscript order, lowest first. The passages run one after
+another in manuscript order, the first passage beginning on the first line of the
+manuscript, and each passage beginning on the line after the one before it ends. A passage
+listed in more than one stretch is one passage: its stretches run on from each other, and
+its drafted lines are theirs together. A passage's page is the page its first line falls on.
 
 ## How the edit register is kept
 
 `edit_register.xlsx` records every decision on every edit on its `Log` sheet, and its
-`About` sheet says how the log is kept and what each kind of call means.
+`About` sheet says how the log is kept and what the calls mean.
 
 ## How long a passage is
 

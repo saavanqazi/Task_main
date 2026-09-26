@@ -9,8 +9,9 @@ Deliver exactly these files, in your working directory:
 
 Header, exactly: `passage_id,page_number,verdict`
 
-One row per passage in `passage_ledger.csv`, in any order, with `passage_id` in the
-ledger's own form (`PS-04`, not `PS4` or `4`). `page_number` is the page that passage's
+One row per passage (a passage is everything `passage_ledger.csv` lists under one
+`passage_id`), in any order, with `passage_id` in the ledger's own form (`PS-04`, not `PS4`
+or `4`). `page_number` is the page that passage's
 first line falls on once the accepted edits are in, and `verdict` is how the passage is
 recorded under the layout spec, exactly one of: `WHOLLY_ON_PAGE`, `STRADDLES_BREAK`,
 `EDIT_DEFERRED`, `LENGTH_FLOORED`.
