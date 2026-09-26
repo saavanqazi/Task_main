@@ -6,9 +6,9 @@ through the vendored engine: no judge, no network. Every equivalence variant (11
 check; every breaking variant (11.2) and every declared wrong reading (README section 5) must fail, on
 the check written for it.
 
-The wrong readings are not typed in: each is recomputed from the shipped inputs by one small solver
-with one rule switched, so editing the fixture cannot leave this harness testing a wrong answer that
-no longer follows from the data.
+The wrong readings are not typed in: each is recomputed from the shipped inputs by the gold's own solver
+(tests/derive_gold.py) with one rule switched, so editing the fixture cannot leave this harness testing a
+wrong answer that no longer follows from the data.
 
 Run inside the task image, from the package root:
   docker build -t b52a9 environment/
@@ -42,89 +42,11 @@ G_JSON = json.loads((GOLD / "results.json").read_text(encoding="utf-8"))
 
 
 # --- one solver over the shipped inputs, one rule switchable per wrong reading ----------------------
-def read_log(inputs):
-    """The Log sheet of edit_register.xlsx as header-keyed rows (dates as ISO strings)."""
-    import openpyxl
-    ws = openpyxl.load_workbook(inputs / "edit_register.xlsx", data_only=True)["Log"]
-    head = [c.value for c in ws[1]]
-    rows = []
-    for r in ws.iter_rows(min_row=2, values_only=True):
-        if r[0] is None:
-            continue
-        rows.append({h: (v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v))
-                     for h, v in zip(head, r)})
-    return rows
-
-
-def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
-          deferred_counts=False, exclusive_end=False, geometry_first=False):
-    """One solver, one switch per wrong reading.
-
-    select: which register lines decide a passage's edits
-      latest         each edit stands as its latest line; every such edit counts (the gold)
-      every_line     every line is an edit in its own right (re-logged edits counted again); also what
-                     folding the second read onto the Tally as additions gives on this fixture
-      tally_only     the first read's standing (the Tally sheet), second read ignored
-      first_line     each edit stands as its FIRST line (the first-read state)
-      passage_last   one line per passage: the passage's last line wins (a passage_id dict)
-      passage_first  one line per passage: its first line wins
-      row_per_edit   latest line per edit, but one register row per edit (a left join)
-    any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
-    """
-    ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
-    register = read_log(inputs)
-    if select == "every_line":
-        chosen = register
-    elif select == "tally_only":
-        second = min(e["logged_on"] for e in register if e["logged_on"] >= "2026-09")
-        chosen = list({e["edit_code"]: e for e in register if e["logged_on"] < second}.values())
-    elif select == "first_line":
-        chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
-    elif select == "passage_last":
-        chosen = list({e["passage_id"]: e for e in register}.values())
-    elif select == "passage_first":
-        chosen = list({e["passage_id"]: e for e in reversed(register)}.values())
-    else:
-        chosen = list({e["edit_code"]: e for e in register}.values())
-    edits = {}
-    for e in chosen:
-        edits.setdefault(e["passage_id"], []).append(e)
-    ever_deferred = {e["passage_id"] for e in register if e["edit_state"] == "DEFERRED"}
-    units = []  # (passage_id, drafted, [edits]) -- one per ledger line, or one per joined edit
-    for p in ledger:
-        mine = edits.get(p["passage_id"], [])
-        if select == "row_per_edit" and len(mine) > 1:
-            units += [(p["passage_id"], int(p["drafted_lines"]), [e]) for e in mine]
-        else:
-            units.append((p["passage_id"], int(p["drafted_lines"]), mine))
-
-    def page(line):
-        return (line - 1) // 30 + 1
-
-    rows, counts, line = [], {"S": 0, "D": 0, "F": 0, "W": 0}, 1
-    for pid, drafted, mine in units:
-        counted = [e for e in mine if e["edit_state"] == "ACCEPTED" or deferred_counts]
-        raw = drafted + sum(int(e["line_change"]) for e in counted)
-        floored = raw < 1 and not no_floor
-        length = 1 if floored else raw
-        occupies = max(raw, 0) if (floored and floor_takes_no_line) else length
-        first = line
-        last_page = (first - 1 + length) // 30 + 1 if exclusive_end else page(first + length - 1)
-        geo = "S" if page(first) != last_page else "W"
-        deferred = any(e["edit_state"] == "DEFERRED" for e in mine) or (any_deferred and pid in ever_deferred)
-        if floored:
-            v = "F"
-        elif geometry_first:
-            v = "S" if geo == "S" else ("D" if deferred else "W")
-        else:
-            v = "D" if deferred else geo
-        counts[v] += 1
-        rows.append([pid, page(first), {"S": "STRADDLES_BREAK", "D": "EDIT_DEFERRED",
-                                        "F": "LENGTH_FLOORED", "W": "WHOLLY_ON_PAGE"}[v]])
-        line = first + occupies
-    return rows, {"straddling_passage_count": counts["S"], "deferred_edit_count": counts["D"],
-                  "length_floored_count": counts["F"], "wholly_on_page_count": counts["W"],
-                  "final_page_count": page(line - 1)}
+def solve(inputs, **switches):
+    """The one solver (tests/derive_gold.py), with one switch per declared wrong reading."""
+    import derive_gold
+    rows, results, _ = derive_gold.solve(inputs, **switches)
+    return rows, results
 
 
 def render(rows):
@@ -195,7 +117,8 @@ def main():
     expect("E11 add an unrelated scratch file", failing(extra={"scratch.py": "print(1)\n"}), None)
 
     print("11.2 breaking suite: must fail on the check written for it")
-    expect("B1 one page off (PS-09 4 -> 5)", failing(render(edit("PS-09", 1, "5"))), ["register_rows"])
+    expect("B1 one page off (PS-09 +1)", failing(render(edit("PS-09", 1, str(int(dict((r[0], r[1]) for r in rows)["PS-09"]) + 1)))),
+           ["register_rows"])
     expect("B2 one verdict wrong (PS-06 EDIT_DEFERRED -> WHOLLY_ON_PAGE)",
            failing(render(edit("PS-06", 2, "WHOLLY_ON_PAGE"))), ["register_rows"])
     expect("B3 delete one row (PS-12)", failing(render([r for r in rows if r[0] != "PS-12"])), ["register_rows"])
@@ -211,6 +134,10 @@ def main():
            ["register_trap_ps07"])
     expect("B8b PS-10 left deferred (EDIT_DEFERRED)", failing(render(edit("PS-10", 2, "EDIT_DEFERRED"))),
            ["register_trap_ps10"])
+    expect("B8c PS-20 left parked (EDIT_DEFERRED)", failing(render(edit("PS-20", 2, "EDIT_DEFERRED"))),
+           ["register_trap_ps20"])
+    expect("B8d PS-24 withdrawn read as deferred (EDIT_DEFERRED)", failing(render(edit("PS-24", 2, "EDIT_DEFERRED"))),
+           ["register_trap_ps24"])
     expect("B9 a figure off by one", failing(json_obj=dict(G_JSON, final_page_count=G_JSON["final_page_count"] + 1)),
            ["results_figures"])
     expect("B10 every deliverable empty", failing("", raw_json=""),
@@ -220,33 +147,32 @@ def main():
     expect("B13 bare header and {}", failing(",".join(HEADER) + "\n", raw_json="{}"),
            ["register_rows", "results_figures"])
     expect("B14 figures as a JSON list", failing(raw_json=json.dumps(list(G_JSON.values()))), ["results_figures"])
-    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=412)),
+    expect("extra key in results.json (incidental)", failing(json_obj=dict(G_JSON, total_lines=430)),
            ["results_keyset"])
 
     print("declared wrong readings (README section 5), recomputed from the inputs")
+    T4, T7, T10, T20, T24 = ("register_trap_ps04", "register_trap_ps07", "register_trap_ps10",
+                             "register_trap_ps20", "register_trap_ps24")
     for label, kw, must in (
-        ("W1 every line counts / second read added onto the Tally", dict(select="every_line"),
-         ["register_trap_ps04", "register_trap_ps10", "register_rows", "results_figures"]),
-        ("W1b the Tally as it stands (second read ignored)", dict(select="tally_only"),
-         ["register_trap_ps04", "register_trap_ps07", "register_trap_ps10", "register_rows", "results_figures"]),
-        ("W2 each edit read from its first line (the first-read state)", dict(select="first_line"),
-         ["register_trap_ps04", "register_trap_ps10", "register_rows", "results_figures"]),
-        ("W3 one line per passage, the last wins (a passage_id dict)", dict(select="passage_last"),
-         ["register_trap_ps07", "register_rows", "results_figures"]),
-        ("W4 one line per passage, the first wins", dict(select="passage_first"),
-         ["register_trap_ps04", "register_trap_ps07", "register_trap_ps10", "register_rows", "results_figures"]),
-        ("W5 one register row per edit (PS-07 twice)", dict(select="row_per_edit"),
-         ["register_trap_ps07", "register_rows", "results_figures"]),
-        ("W6 a DEFERRED line anywhere makes the passage deferred", dict(any_deferred=True),
-         ["register_trap_ps10", "results_figures"]),
-        ("W7 no floor: a passage cut past zero shrinks the manuscript", dict(no_floor=True),
-         ["register_trap_ps07", "register_rows", "results_figures"]),
-        ("W8 floored but its line not counted", dict(floor_takes_no_line=True), ["register_rows"]),
-        ("W9 deferred edits counted in the length", dict(deferred_counts=True), ["register_rows"]),
-        ("W10 last line taken one past the passage", dict(exclusive_end=True),
+        ("W1 withdrawn read as deferred (the Not in sheet taken as 'parked')", dict(withdrawn_as_deferred=True),
+         [T24, "register_rows", "results_figures"]),
+        ("W2 revised numbers ignored (the proposed change kept)", dict(ignore_revisions=True),
          ["register_rows", "results_figures"]),
-        ("W11 geometry ranked above a deferred edit", dict(geometry_first=True),
-         ["register_trap_ps04", "results_figures"]),
+        ("W3 'Back to Ines's call' ignored (the parked call stands)", dict(revert_noop=True),
+         [T20, "results_figures"]),
+        ("W4 'Back to Ines's call' read as the proposed change", dict(revert_to_proposed=True),
+         ["register_rows", "results_figures"]),
+        ("W5 each edit read from its first decision", dict(first_line_only=True),
+         [T4, T10, T24, "register_rows", "results_figures"]),
+        ("W6 the first read only (second read ignored)", dict(first_read_only=True),
+         [T4, T7, T10, T24, "register_rows", "results_figures"]),
+        ("W7 every accepting line applied again", dict(every_line=True),
+         [T4, "register_rows", "results_figures"]),
+        ("W8 no floor", dict(no_floor=True), [T7, "register_rows", "results_figures"]),
+        ("W9 floored but its line not counted", dict(floor_takes_no_line=True), ["register_rows"]),
+        ("W10 deferred edits counted in the length", dict(deferred_counts=True), [T4, "register_rows"]),
+        ("W11 last line taken one past the passage", dict(exclusive_end=True), ["register_rows", "results_figures"]),
+        ("W12 geometry ranked above a deferred edit", dict(geometry_first=True), [T4, "results_figures"]),
     ):
         wrong_rows, wrong_res = solve(INPUTS, **kw)
         expect(label, failing(render(wrong_rows), json_obj=wrong_res), must)

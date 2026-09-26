@@ -12,15 +12,14 @@ page its first line falls on.
 
 ## How the edit register is kept
 
-`edit_register.xlsx` records every edit on its `Log` sheet, and its `About` sheet says how
-the log is kept.
+`edit_register.xlsx` records every decision on every edit on its `Log` sheet, and its
+`About` sheet says how the log is kept and what each kind of call means.
 
 ## How long a passage is
 
 A passage's length is its drafted lines plus the line change of every edit that stands
-accepted for it. A deferred edit changes nothing: the lines it would add or remove are
-not counted, and the passage is recorded as carrying a deferred edit. A passage with no
-accepted edit keeps its drafted length.
+accepted for it. An edit that is not accepted changes nothing: the lines it would add or
+remove are not counted. A passage with no accepted edit keeps its drafted length.
 
 A passage never falls below 1 line. Where its accepted edits would take it under that,
 the passage is held at 1 line and recorded as floored. The lines the floor holds back
@@ -30,7 +29,7 @@ the edit register alone would suggest.
 ## What each passage is recorded as
 
 A passage held at the minimum is recorded as floored, whatever else is true of it. A
-passage with a deferred edit is recorded as carrying a deferred edit. Otherwise a
+passage with an edit that stands deferred is recorded as carrying a deferred edit. Otherwise a
 passage whose first and last lines fall on different pages is recorded as crossing a
 break, and one whose lines all fall on a single page is recorded as sitting wholly on it.
 

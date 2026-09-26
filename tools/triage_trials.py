@@ -15,106 +15,34 @@ import argparse
 import csv
 import io
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def read_log(inputs):
-    """The Log sheet of edit_register.xlsx as header-keyed rows (dates as ISO strings)."""
-    import openpyxl
-    ws = openpyxl.load_workbook(inputs / "edit_register.xlsx", data_only=True)["Log"]
-    head = [c.value for c in ws[1]]
-    rows = []
-    for r in ws.iter_rows(min_row=2, values_only=True):
-        if r[0] is None:
-            continue
-        rows.append({h: (v.date().isoformat() if hasattr(v, "date") and callable(v.date) else str(v))
-                     for h, v in zip(head, r)})
-    return rows
-
-
-def solve(inputs, select="latest", any_deferred=False, no_floor=False, floor_takes_no_line=False,
-          deferred_counts=False, exclusive_end=False, geometry_first=False):
-    """One solver, one switch per wrong reading.
-
-    select: which register lines decide a passage's edits
-      latest         each edit stands as its latest line; every such edit counts (the gold)
-      every_line     every line is an edit in its own right (re-logged edits counted again); also what
-                     folding the second read onto the Tally as additions gives on this fixture
-      tally_only     the first read's standing (the Tally sheet), second read ignored
-      first_line     each edit stands as its FIRST line (the first-read state)
-      passage_last   one line per passage: the passage's last line wins (a passage_id dict)
-      passage_first  one line per passage: its first line wins
-      row_per_edit   latest line per edit, but one register row per edit (a left join)
-    any_deferred: a passage with a DEFERRED line anywhere in its history counts as deferred
-    """
-    ledger = list(csv.DictReader(io.open(inputs / "passage_ledger.csv", encoding="utf-8")))
-    register = read_log(inputs)
-    if select == "every_line":
-        chosen = register
-    elif select == "tally_only":
-        second = min(e["logged_on"] for e in register if e["logged_on"] >= "2026-09")
-        chosen = list({e["edit_code"]: e for e in register if e["logged_on"] < second}.values())
-    elif select == "first_line":
-        chosen = list({e["edit_code"]: e for e in reversed(register)}.values())
-    elif select == "passage_last":
-        chosen = list({e["passage_id"]: e for e in register}.values())
-    elif select == "passage_first":
-        chosen = list({e["passage_id"]: e for e in reversed(register)}.values())
-    else:
-        chosen = list({e["edit_code"]: e for e in register}.values())
-    edits = {}
-    for e in chosen:
-        edits.setdefault(e["passage_id"], []).append(e)
-    ever_deferred = {e["passage_id"] for e in register if e["edit_state"] == "DEFERRED"}
-    units = []  # (passage_id, drafted, [edits]) -- one per ledger line, or one per joined edit
-    for p in ledger:
-        mine = edits.get(p["passage_id"], [])
-        if select == "row_per_edit" and len(mine) > 1:
-            units += [(p["passage_id"], int(p["drafted_lines"]), [e]) for e in mine]
-        else:
-            units.append((p["passage_id"], int(p["drafted_lines"]), mine))
-
-    def page(line):
-        return (line - 1) // 30 + 1
-
-    rows, counts, line = [], {"S": 0, "D": 0, "F": 0, "W": 0}, 1
-    for pid, drafted, mine in units:
-        counted = [e for e in mine if e["edit_state"] == "ACCEPTED" or deferred_counts]
-        raw = drafted + sum(int(e["line_change"]) for e in counted)
-        floored = raw < 1 and not no_floor
-        length = 1 if floored else raw
-        occupies = max(raw, 0) if (floored and floor_takes_no_line) else length
-        first = line
-        last_page = (first - 1 + length) // 30 + 1 if exclusive_end else page(first + length - 1)
-        geo = "S" if page(first) != last_page else "W"
-        deferred = any(e["edit_state"] == "DEFERRED" for e in mine) or (any_deferred and pid in ever_deferred)
-        v = "F" if floored else (("S" if geo == "S" else ("D" if deferred else "W")) if geometry_first
-                                 else ("D" if deferred else geo))
-        counts[v] += 1
-        rows.append((pid, page(first), {"S": "STRADDLES_BREAK", "D": "EDIT_DEFERRED",
-                                        "F": "LENGTH_FLOORED", "W": "WHOLLY_ON_PAGE"}[v]))
-        line = first + occupies
-    return rows, {"straddling_passage_count": counts["S"], "deferred_edit_count": counts["D"],
-                  "length_floored_count": counts["F"], "wholly_on_page_count": counts["W"],
-                  "final_page_count": page(line - 1)}
+def solve(inputs, **switches):
+    """The gold's own solver (the task's tests/derive_gold.py), one switch per declared wrong reading."""
+    sys.path.insert(0, str(inputs.parent.parent / "tests"))
+    import derive_gold
+    rows, results, _ = derive_gold.solve(inputs, **switches)
+    return [tuple(r) for r in rows], results
 
 
 READINGS = {
     "GOLD": {},
-    "W1 every line counts / 2nd read added onto Tally": dict(select="every_line"),
-    "W1b Tally only (2nd read ignored)": dict(select="tally_only"),
-    "W2 first line per edit": dict(select="first_line"),
-    "W3 last line per passage (dict)": dict(select="passage_last"),
-    "W4 first line per passage": dict(select="passage_first"),
-    "W5 one row per edit": dict(select="row_per_edit"),
-    "W6 any DEFERRED line = deferred": dict(any_deferred=True),
-    "W7 no floor": dict(no_floor=True),
-    "W8 floor line not counted": dict(floor_takes_no_line=True),
-    "W9 deferred counted": dict(deferred_counts=True),
-    "W10 last line one past": dict(exclusive_end=True),
-    "W11 geometry above deferred": dict(geometry_first=True),
+    "W1 withdrawn as deferred": dict(withdrawn_as_deferred=True),
+    "W2 revisions ignored": dict(ignore_revisions=True),
+    "W3 revert ignored": dict(revert_noop=True),
+    "W4 revert to proposed": dict(revert_to_proposed=True),
+    "W5 first decision per edit": dict(first_line_only=True),
+    "W6 first read only": dict(first_read_only=True),
+    "W7 every accepting line again": dict(every_line=True),
+    "W8 no floor": dict(no_floor=True),
+    "W9 floor line not counted": dict(floor_takes_no_line=True),
+    "W10 deferred counted": dict(deferred_counts=True),
+    "W11 last line one past": dict(exclusive_end=True),
+    "W12 geometry above deferred": dict(geometry_first=True),
 }
 
 
