@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build the task's input fixture from one table of data (author tool, not in the task package).
 
-Writes environment/input/passage_ledger.csv and environment/input/edit_register.xlsx (sheets Log,
-About, Draft pages, Not in). The Log records each decision in the reader's own words; what each wording means is
-declared once, in tests/derive_gold.py (DECISIONS), which asserts every Log decision is covered.
+Writes environment/input/passage_ledger.csv, environment/input/edit_register.xlsx (sheets Edits, About,
+Draft pages) and environment/input/edit_thread.txt, the email thread in which Ines and Tomas made every
+decision, each reply quoting the message before it. What each decision wording means is declared once, in
+tests/derive_gold.py (DECISIONS), which asserts every decision in the thread is covered.
 
   python3 tools/build_fixture.py writing-b52-a9-manuscript-page-ledger-recompute
 
@@ -161,20 +162,58 @@ LOG = [
 ABOUT = [
     "Edit register, Everly manuscript: both reads",
     "",
-    "Log: one line per decision on an edit, in the order the decisions were made, in the reader's own words. "
-    "An edit's first line gives its line change as proposed; later lines for the same edit leave "
-    "proposed_change blank. An edit's latest decision is its call.",
+    "Edits: every edit proposed on either read, with the passage it was proposed for, what it does, and its "
+    "line change as proposed.",
+    "Thread: the decisions are in edit_thread.txt, the mail between Ines and Tomas, in the order the messages "
+    "were sent. A decision is a line of a message naming the edit and giving the call in the reader's own words. "
+    "Each reply quotes the message it answers, marked in the usual way; the quoted lines are the earlier message, "
+    "not new decisions. An edit's latest decision is its call.",
     "A call is one of three. Accepted: the edit goes in, with the number of lines the decision gives, or, if it "
     "gives none, the edit's number as it last stood. Deferred: the edit is parked for the author; it does not go "
     "in, and it stays open against its passage. Withdrawn: the edit is turned down; it does not go in, and "
     "nothing stays open. A decision that returns an edit to an earlier call makes the edit stand as that call did. "
-    "A decision given as the same call as another decision makes the same kind of call, at this edit's own number.",
+    "A decision given as the same call as another decision makes the same kind of call, at this edit's own number; "
+    "Ditto is the same call as the decision on the line before it.",
     "First read (Ines): 3 to 21 August. Second read (Tomas): 7 to 12 September.",
     "",
     "Draft pages: Tomas's register of every flag against the draft's pages (30 lines a page, the draft as it "
-    "stood before either read), for checking off. Not in: Tomas's list, at the end of the second read, of the edits "
-    "that are not going into this pass.",
+    "stood before either read), for checking off.",
 ]
+
+NAMES = {"Ines": "Ines Moreau <ines.moreau@everlypress.example>", "Tomas": "Tomas Aird <tomas.aird@everlypress.example>"}
+OPENERS = {"Ines": ["Tomas,", "Tomas,", "Tomas, more from the first read.", "Tomas, carrying on.", "Tomas,"],
+           "Tomas": ["Ines,", "Ines, second read, going through in order.", "Ines,", "Ines, a few more.", "Ines,"]}
+CLOSERS = {"Ines": "Ines", "Tomas": "T."}
+
+
+def thread_messages():
+    """Group the LOG into messages, one per (date, reader), in order; each quotes the one before it."""
+    msgs = []
+    for date, code, proposed, reader, decision in LOG:
+        if msgs and msgs[-1]["date"] == date and msgs[-1]["reader"] == reader:
+            msgs[-1]["lines"].append((code, decision))
+        else:
+            msgs.append({"date": date, "reader": reader, "lines": [(code, decision)]})
+    return msgs
+
+
+def render_thread(msgs):
+    """Each message quotes the whole message it answers, quoted history included (the mail client's default),
+    so the last message carries every earlier decision at increasing quote depth."""
+    out, prev = [], None   # prev: the previous message's body with its own quote block
+    for i, m in enumerate(msgs):
+        other = "Tomas" if m["reader"] == "Ines" else "Ines"
+        subject = ("Everly: first read" if i == 0 else "Re: Everly: first read")
+        body = [OPENERS[m["reader"]][i % len(OPENERS[m["reader"]])], ""]
+        body += [f"{code}: {decision}" for code, decision in m["lines"]]
+        body += ["", CLOSERS[m["reader"]]]
+        if prev is not None:
+            body += ["", f"On {msgs[i-1]['date']}, {NAMES[msgs[i-1]['reader']].split(' <')[0]} wrote:"]
+            body += [("> " + l) if l and not l.startswith(">") else (">" + l if l else ">") for l in prev]
+        text = [f"From: {NAMES[m['reader']]}", f"To: {NAMES[other]}", f"Date: {m['date']}", f"Subject: {subject}", ""]
+        out.append("\n".join(text + body))
+        prev = body
+    return "\n\n----\n\n".join(out) + "\n"
 
 
 def main():
@@ -200,17 +239,16 @@ def main():
         w.writerows(LEDGER)
 
     wb = openpyxl.Workbook()
-    log = wb.active
-    log.title = "Log"
-    log.append(["logged_on", "edit_code", "passage_id", "description", "proposed_change", "reader", "decision"])
-    for c in log[1]:
+    edits = wb.active
+    edits.title = "Edits"
+    edits.append(["edit_code", "passage_id", "description", "proposed_change"])
+    for c in edits[1]:
         c.font = Font(bold=True)
-    for date, code, proposed, reader, decision in LOG:
-        pid, desc = EDITS[code]
-        log.append([dt.date.fromisoformat(date), code, pid, desc, proposed, reader, decision])
-        log.cell(row=log.max_row, column=1).number_format = "yyyy-mm-dd"
-    for col, width in zip("ABCDEFG", (12, 10, 11, 44, 16, 8, 56)):
-        log.column_dimensions[col].width = width
+    proposed = {code: p for _, code, p, _, _ in LOG if p is not None}
+    for code, (pid, desc) in EDITS.items():
+        edits.append([code, pid, desc, proposed[code]])
+    for col, width in zip("ABCD", (10, 11, 44, 16)):
+        edits.column_dimensions[col].width = width
 
     about = wb.create_sheet("About")
     for line in ABOUT:
@@ -230,16 +268,9 @@ def main():
     for col, width in zip("ABCDE", (11, 11, 13, 11, 14)):
         draft.column_dimensions[col].width = width
 
-    notin = wb.create_sheet("Not in")
-    notin.append(["edit_code", "passage_id", "description"])
-    for c in notin[1]:
-        c.font = Font(bold=True)
-    calls = standing([{"logged_on": d, "edit_code": c, "passage_id": EDITS[c][0], "proposed_change": p,
+    (inp / "edit_thread.txt").write_text(render_thread(thread_messages()), encoding="utf-8")
+    calls = standing([{"logged_on": d, "edit_code": c, "passage_id": EDITS[c][0], "proposed_change": proposed[c],
                        "reader": r, "decision": t} for d, c, p, r, t in LOG])
-    for code in sorted(calls):
-        if calls[code]["state"] != "ACCEPTED":
-            notin.append([code, EDITS[code][0], EDITS[code][1]])
-    notin.column_dimensions["C"].width = 44
 
     fixed = dt.datetime(2026, 9, 12, 17, 0, 0)
     wb.properties.creator = "Ines Moreau"
@@ -247,8 +278,9 @@ def main():
     wb.properties.created = fixed
     wb.properties.modified = fixed
     wb.save(inp / "edit_register.xlsx")
-    print(f"wrote {len(LEDGER)} ledger rows ({len({r[0] for r in LEDGER})} passages, draft {sum(n for _, n in MANUSCRIPT)} lines) and {len(LOG)} log lines "
-          f"over {len(EDITS)} edits; Not in: {sum(1 for c in calls.values() if c['state'] != 'ACCEPTED')} edits")
+    print(f"wrote {len(LEDGER)} ledger rows ({len({r[0] for r in LEDGER})} passages, draft {sum(n for _, n in MANUSCRIPT)} lines), "
+          f"{len(EDITS)} edits, and a thread of {len(thread_messages())} messages carrying {len(LOG)} decisions "
+          f"({sum(1 for c in calls.values() if c['state'] != 'ACCEPTED')} edits not accepted)")
 
 
 if __name__ == "__main__":

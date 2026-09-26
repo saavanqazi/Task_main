@@ -2,8 +2,9 @@
 """Derive the golden key from the shipped inputs alone, and check it against solution/files (GLD-11).
 
 Author tool, not on the reward path. It reads only environment/input/ and applies the disclosed rules:
-  R1  (About sheet) the Log records decisions in the reader's own words; an edit's latest decision is its
-      call; a call is ACCEPTED (goes in, with the number the decision gives, else the edit's number as it
+  R1  (About sheet) the decisions are the lines of edit_thread.txt that name an edit, in message order;
+      a reply's quoted lines (">") are the earlier message, not new decisions; an edit's latest decision is
+      its call; a call is ACCEPTED (goes in, with the number the decision gives, else the edit's number as it
       last stood), DEFERRED (does not go in, stays open against the passage) or WITHDRAWN (does not go in,
       nothing stays open); a decision returning an edit to an earlier call makes it stand as that call did;
       a decision given as the same call as another makes the same kind of call at this edit's own number
@@ -23,9 +24,9 @@ DECISIONS below is the declared meaning of every wording the Log uses (the inter
 audits); derive() asserts every Log decision is covered. The same solver, with one switch per wrong
 reading, is imported by tests/discrimination.py and tools/triage_trials.py.
 
-It also asserts the fixture's design invariants (README section 5), that the Not in sheet the requester
-vouches for lists exactly the edits whose call is not ACCEPTED, and that every pin in tests/verifier.json
-equals the derived gold. Needs openpyxl (the task image has it).
+It also asserts the fixture's design invariants (README section 5), that the Draft pages sheet the requester
+vouches for is the per-flag draft layout, that replies quote earlier decisions, and that every pin in
+tests/verifier.json equals the derived gold. Needs openpyxl (the task image has it).
 
   python3 tests/derive_gold.py            compare with solution/files, exit 1 on any difference
   python3 tests/derive_gold.py --write    rewrite solution/files/page_register.csv and results.json
@@ -99,9 +100,37 @@ def read_sheet(name: str, inp: Path = INP) -> list[dict]:
     return rows
 
 
-def read_inputs(inp: Path = INP):
+def read_thread(inp: Path = INP, quotes_counted=False) -> list[dict]:
+    """The decisions in edit_thread.txt, in message order, as Log-shaped rows.
+
+    A message starts at a "From:" header; its "Date:" gives logged_on; the sender's first name is the reader;
+    a decision is a body line "ED-xx: <wording>". Lines beginning with ">" are the quoted earlier message and
+    are skipped (quotes_counted=True reads them as decisions: a declared wrong reading).
+    """
+    edits = {e["edit_code"]: e for e in read_sheet("Edits", inp)}
+    rows, reader, date = [], None, None
+    for raw in (inp / "edit_thread.txt").read_text(encoding="utf-8").splitlines():
+        line = raw.rstrip()
+        if line.startswith("From: "):
+            reader, date = line[6:].split(" ")[0], None
+            continue
+        if line.startswith("Date: ") and date is None:
+            date = line[6:].strip()
+            continue
+        if line.startswith(">"):
+            if not quotes_counted:
+                continue
+            line = line.lstrip("> ")
+        if line[:3] == "ED-" and ": " in line:
+            code, decision = line.split(": ", 1)
+            rows.append({"logged_on": date, "edit_code": code, "passage_id": edits[code]["passage_id"],
+                         "proposed_change": int(edits[code]["proposed_change"]), "reader": reader, "decision": decision})
+    return rows
+
+
+def read_inputs(inp: Path = INP, quotes_counted=False):
     ledger = list(csv.DictReader(io.open(inp / "passage_ledger.csv", encoding="utf-8")))
-    return ledger, read_sheet("Log", inp)
+    return ledger, read_thread(inp, quotes_counted)
 
 
 def passages(ledger, file_order=False, stretch_separate=False, stretch_overwrite=False):
@@ -226,16 +255,17 @@ def layout(order, calls, no_floor=False, floor_takes_no_line=False, deferred_cou
 
 
 LEDGER_SWITCHES = {"file_order", "stretch_separate", "stretch_overwrite"}
+READ_SWITCHES = {"quotes_counted"}
 LOG_SWITCHES = {"withdrawn_as_deferred", "ignore_revisions", "revert_noop", "revert_to_proposed",
                 "first_line_only", "first_read_only", "every_line", "same_copies_number", "ditto_is_accept"}
 
 
 def solve(inp: Path = INP, **switches):
     """The whole task under one set of switches: (rows, results, notes)."""
-    ledger, log = read_inputs(inp)
+    ledger, log = read_inputs(inp, **{k: v for k, v in switches.items() if k in READ_SWITCHES})
     order = passages(ledger, **{k: v for k, v in switches.items() if k in LEDGER_SWITCHES})
     calls = standing(log, **{k: v for k, v in switches.items() if k in LOG_SWITCHES})
-    rest = {k: v for k, v in switches.items() if k not in LEDGER_SWITCHES | LOG_SWITCHES}
+    rest = {k: v for k, v in switches.items() if k not in LEDGER_SWITCHES | LOG_SWITCHES | READ_SWITCHES}
     return layout(order, calls, **rest)
 
 
@@ -274,15 +304,15 @@ def derive():
         history.setdefault(l["edit_code"], []).append(l)
     for code, lines in history.items():
         assert len({x["passage_id"] for x in lines}) == 1, f"{code}: lines disagree on the passage"
-        assert lines[0]["proposed_change"] is not None, f"{code}: first line has no proposed change"
-        assert all(x["proposed_change"] is None for x in lines[1:]), f"{code}: proposed change repeated"
+    assert set(history) == {e["edit_code"] for e in read_sheet("Edits")}, "an edit has no decision, or a decision no edit"
+    text = (INP / "edit_thread.txt").read_text(encoding="utf-8")
+    assert sum(1 for l in text.splitlines() if l.startswith("> ED-")) >= 40, "the thread quotes too few decisions"
+    quoted = read_thread(INP, quotes_counted=True)
+    assert len(quoted) > len(log), "quoted lines add no decisions"
 
     calls = standing(log)
     rows, results, notes = layout(order, calls)
 
-    # the requester vouches for the Not in sheet ("lists every edit that isn't going into this pass")
-    notin = sorted(r["edit_code"] for r in read_sheet("Not in"))
-    assert notin == sorted(c for c, v in calls.items() if v["state"] != "ACCEPTED"), "Not in sheet is wrong"
 
     # design invariants: the cases the difficulty design (README section 5) depends on
     drafted = dict(order)

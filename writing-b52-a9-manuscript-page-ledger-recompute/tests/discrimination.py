@@ -187,6 +187,8 @@ def main():
          ['register_rows', 'results_figures']),
         ('W17 geometry ranked above a deferred edit', dict(geometry_first=True),
          ['register_trap_ps04', 'register_rows', 'results_figures']),
+        ("W18 quoted lines in replies read as decisions (the earlier call taken as latest)", dict(quotes_counted=True),
+         ['register_trap_ps04', 'register_trap_ps10', 'register_trap_ps16', 'register_trap_ps17', 'register_trap_ps20', 'register_trap_ps24', 'register_trap_ps31', 'register_trap_ps34', 'register_rows', 'results_figures']),
     ):
         wrong_rows, wrong_res = solve(INPUTS, **kw)
         expect(label, failing(render(wrong_rows), json_obj=wrong_res), must)

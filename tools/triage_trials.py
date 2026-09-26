@@ -48,6 +48,7 @@ READINGS = {
     "W15 deferred counted": dict(deferred_counts=True),
     "W16 last line one past": dict(exclusive_end=True),
     "W17 geometry above deferred": dict(geometry_first=True),
+    "W18 quoted lines counted": dict(quotes_counted=True),
 }
 
 

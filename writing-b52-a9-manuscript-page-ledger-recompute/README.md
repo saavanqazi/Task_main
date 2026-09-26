@@ -15,13 +15,15 @@ after two edit reads. The agent gets four files:
 - the flag ledger, `passage_ledger.csv`: 41 flags in the order they were raised (`passage_id, draft_line,
   drafted_lines`); the first read's 34 flags are in manuscript order, the second read's seven follow, and
   one of those, the ledger's 39th line, is the second stretch of PS-16, flagged on the first read at line 17;
-- the edit register, `edit_register.xlsx`, with four sheets:
-  - `Log`: 58 decisions on 45 edits, each with date, edit, passage, description, the proposed line change
-    (first line of an edit only), reader, and **the decision in the reader's own words** (30 wordings);
-  - `About`: how the log is kept, what the three kinds of call mean, and how a return, a "Ditto." and a
+- the edit register, `edit_register.xlsx`, with three sheets:
+  - `Edits`: the 45 edits, each with its passage, what it does and its line change as proposed;
+  - `About`: how the thread is read, what the three kinds of call mean, and how a return, a "Ditto." and a
     "Same call as" decision read;
   - `Draft pages`: Tomas's register of every flag against the draft's pages (41 rows, PS-16 twice);
-  - `Not in`: Tomas's list of the edits not going into this pass;
+- the edit thread, `edit_thread.txt`: 19 messages between Ines and Tomas (1,670 lines), in which every
+  decision is a line naming the edit and giving the call in the reader's own words (58 decisions, 30
+  wordings); each reply quotes the whole message it answers, quoted history included, so the last message
+  carries every earlier decision at up to 18 levels of `>`;
 - the press's layout spec;
 - the submission format.
 
@@ -46,8 +48,11 @@ everything `passage_ledger.csv` lists under one `passage_id`"). Two literally tr
 invite one row per flag: "every line in it is a stretch I flagged, and none has been merged or dropped",
 and "Tomas got the flags right; it's the pages that are stale", whose sheet lists PS-16 twice. A run that
 writes one row per ledger line delivers 41 rows; a run that keys a dict by `passage_id` keeps 9 lines for
-PS-16. Either moves every later row. On top of that, the 58 decisions have to be read one by one, with
-"Ditto." and "Same call as" resolved against the log as it then stood, and no sheet confirms the reading.
+PS-16. Either moves every later row. On top of that, the 58 decisions have to be read out of a mail thread, one by one, with "Ditto." and "Same
+call as" resolved against the thread as it then stood, and no sheet confirms the reading. The thread quotes
+its own history: 361 of the 419 decision-shaped lines are quoted copies of earlier messages, and in file
+order the deepest quote of the last message is the first message, so a scan that does not drop `>` lines
+takes each edit's first decision as its latest and gets 36 of the 40 rows wrong (W18).
 
 ## 2. Departures from the mined version
 
@@ -58,10 +63,10 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 | file | was | now | why |
 |---|---|---|---|
-| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the ledger described as "in the order I flagged them, with the draft line each starts on; every line in it is a stretch I flagged, and none has been merged or dropped"; the register as "the edit register Ines and Tomas kept through both reads", its Log as "every decision either of them made on an edit, in their own words", "nothing has been struck from it", "Tomas's Draft pages sheet has every flag against the draft's pages", and "Tomas got the flags right; it's the pages that are stale"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (every ledger line is one flagged stretch and none was merged; no log line was deleted; the Draft pages sheet is the per-flag draft layout and the Not in sheet equals the edits whose call is not accepted, both asserted by derive_gold.py) |
+| `instruction.md` | "# Task" heading, `---` dividers, relative `input/…` paths, deliverables named twice, "must be your final action; confirm each one exists", a "Working environment" block, and "One of the cuts is as long as the passage it is cutting, so do not let that passage vanish and pull everything else back with it" | the requester's own paragraph; every path absolute and named once; the floor hint removed; the ledger described as "in the order I flagged them, with the draft line each starts on; every line in it is a stretch I flagged, and none has been merged or dropped"; the register as "the edit register Ines and Tomas kept through both reads", the thread as "their mail on it: every call either of them made is in there, in their own words, and nothing has been cut from the thread", "Tomas's Draft pages sheet in the register has every flag against the draft's pages", and "he got the flags right, it's the pages that are stale"; the five figures named by pointing at the layout rules | INS-1, INS-11, INS-13, INS-15, PKG-14; the removed sentence named the deciding case and its fix (INS-8/FIX-3); the leads are literally true (every ledger line is one flagged stretch and none was merged; no message was cut from the thread; the Draft pages sheet is the per-flag draft layout and the Not in sheet equals the edits whose call is not accepted, both asserted by derive_gold.py) |
 | `environment/input/passage_ledger.csv` | 12 passages, `passage_id,drafted_lines,edit_code` (one edit code per passage, `NONE` for none), in manuscript order | 41 flags over 40 passages, `passage_id,draft_line,drafted_lines`, in flagging order; the second read's flags appended, among them PS-16's second stretch (file line 39; its first stretch is line 17), with no note and no stretch column | the ledger no longer does the join; manuscript order comes from `draft_line`, and the two-stretch passage is the reference's unit-of-analysis trap done as the reference did it: a repeated id far down the file, nothing pointing at it (§5) |
-| `environment/input/edit_register.csv` → `edit_register.xlsx` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook: `Log` (58 dated decisions on 45 edits in the readers' words, `proposed_change` on each edit's first line only), `About` (the log's keeping; the three calls; returns, "Ditto." and "Same call as"), `Draft pages` (Tomas's per-flag register against the draft's pages: 41 rows, PS-16 twice, every value true of the draft), `Not in` (Tomas's list of edits not going in, no state column) | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the Log; `Draft pages` is asserted equal to the per-flag draft layout (it is Rui's tab: right ids, wrong unit) |
-| `environment/input/layout_spec.md` | "The passages run one after another in the order the ledger lists them"; "plus the line change of the edit proposed for it"; "A passage whose edit was deferred" | "`draft_line` is the line of the draft each flag starts on, and the manuscript keeps the draft's order"; "its drafted lines (a passage flagged in more than one stretch has the stretches' lines together)"; "every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; a pointer to the register's About sheet | definitions where the data lives (FIX-2), each stated once, as the reference's C4 parenthetical is |
+| `environment/input/edit_register.csv` → `edit_register.xlsx` + `edit_thread.txt` | `edit_code,line_change,edit_state`; 8 edits, one line each, one per passage | a workbook (`Edits`: 45 edits with proposed line change; `About`: how the thread is read, the three calls, returns, "Ditto." and "Same call as"; `Draft pages`: Tomas's per-flag register against the draft's pages, 41 rows, PS-16 twice, every value true of the draft) and a 19-message mail thread carrying the 58 decisions in the readers' words, each reply quoting the full history | the crux (§5); built by `tools/build_fixture.py` (repository root); every wording's meaning is declared in `tests/derive_gold.py` (`DECISIONS`) and asserted to cover the thread; `Draft pages` is asserted equal to the per-flag draft layout (it is Rui's tab: right ids, wrong unit); the thread is asserted to quote earlier decisions |
+| `environment/input/layout_spec.md` | "The passages run one after another in the order the ledger lists them"; "plus the line change of the edit proposed for it"; "A passage whose edit was deferred" | "`draft_line` is the line of the draft each flag starts on, and the manuscript keeps the draft's order"; "its drafted lines (a passage flagged in more than one stretch has the stretches' lines together)"; "every edit that stands accepted for it"; "An edit that is not accepted changes nothing"; "the decisions on them are in `edit_thread.txt`, the mail between the two readers", with a pointer to the register's About sheet | definitions where the data lives (FIX-2), each stated once, as the reference's C4 parenthetical is |
 | `environment/input/submission_format.md` | "One row per record, keyed by `passage_id`" and "in the order the file lists them" (order ungraded); a thousands-separator / currency clause for page numbers | "One row per passage (a passage is everything `passage_ledger.csv` lists under one `passage_id`), in any order, with `passage_id` in the ledger's own form"; "`page_number` … a plain whole number" | P6 over-specification: order was demanded but never graded; the currency clause did not fit page numbers |
 | `environment/Dockerfile` | `python:3.12-slim-bookworm` unpinned | pinned by digest `@sha256:4766d8…58a2` (same base as the accepted Task_17 bundle) | ENV-3 |
 | `task.toml` | `artifacts = []`, no reward shape | two artifact paths; `reward_shape`; description rewritten | TOML-4/5, HAR-2, PKG-14 |
@@ -165,7 +170,7 @@ guards, a shared engine without the compound comparators, and GLM-5.2 solving 3/
 
 ## 5. Difficulty design (declared before the measuring battery)
 
-**Crux: unit of analysis, done as the reference did it.** Builds v2-v6 each stated a subtler rule and each
+**Crux: unit of analysis, done as the reference did it, under a mail thread that quotes its own history.** Builds v2-v6 each stated a subtler rule and each
 was solved 5/5: every run read all inputs, turned each rule into a checklist item, encoded the data by hand,
 computed in a script and cross-checked against any helper. In v6 the two-stretch passage carried a `note`
 ("runs straight on") and a `position` column that sorted its stretches together, and every run merged it
@@ -180,11 +185,15 @@ Tomas's `Draft pages` sheet lists 41 flags, PS-16 twice, every value true of the
 pass every self-check: 41 rows with the figures summing to 41 (W11), or 40 rows with PS-16 at 9 lines
 (W12), and both agree with `Draft pages`.
 
-v5's and v6's difficulty stays underneath: 58 prose decisions with "Ditto." and "Same call as" references,
-three calls onto four verdicts, and a `Not in` sheet that corroborates the binary misreading.
+v5's and v6's difficulty stays underneath, and moves from a sheet into mail: 58 prose decisions with "Ditto."
+and "Same call as" references, three calls onto four verdicts, delivered as a 19-message thread in which
+each reply quotes the full history. Quoted lines are the earlier message, not decisions (About sheet); a
+scan that keeps them takes each edit's first decision as its latest (W18, 36 rows wrong), and a hand
+reading has 1,670 lines to work through with 361 quoted decoys. No sheet confirms the extraction: the
+`Not in` sheet is gone.
 
 Expected wrong readings, each recomputed from the inputs by `tests/discrimination.py` with the gold's own
-solver. All eighteen readings, gold included, give pairwise-distinct deliverables:
+solver. All nineteen readings, gold included, give pairwise-distinct deliverables:
 
 | id | reading | checks that fail |
 |---|---|---|
@@ -205,15 +214,16 @@ solver. All eighteen readings, gold included, give pairwise-distinct deliverable
 | W15 | deferred edits counted in the length | five traps, `register_rows`, `results_figures` |
 | W16 | the last line taken one past the passage | `register_rows`, `results_figures` |
 | W17 | geometry ranked above a deferred edit | `_ps04`, `register_rows`, `results_figures` |
+| W18 | quoted lines in replies read as decisions (each edit's first decision taken as latest) | nine traps, `register_rows`, `results_figures` |
 
 ## 6. Probes and solvers
 
-- **Discrimination** (`tests/discrimination.py`, deterministic): **50 of 50 as expected**. 11 equivalence
+- **Discrimination** (`tests/discrimination.py`, deterministic): **51 of 51 as expected**. 11 equivalence
   variants pass: row shuffle, JSON key order, JSON figures as N.0, quoted fields, CRLF, no trailing newline,
   BOM, page numbers as N.0, padded fields, lower-case verdicts, and an extra scratch file. 22 breaking variants
   fail on their own check: a page off, a verdict wrong, a row deleted, appended or duplicated, an extra column,
   each of the nine trap rows wrong, a figure off by one, empty deliverables, each deliverable deleted, a bare
-  header with `{}`, figures as a list, and an extra JSON key on `results_keyset`. The 17 wrong readings W1-W17
+  header with `{}`, figures as a list, and an extra JSON key on `results_keyset`. The 18 wrong readings W1-W18
   fail as declared.
 - **Reward floor** (shipped `test.sh`): empty workspace 0.0; bare header + `{}` 0.0.
 
@@ -231,7 +241,7 @@ intact in every run.
 **PENDING.** Filled in from the GLM-5.2 battery (opencode 1.18.18, `glmproxy/glm-5.2`): one job, every run on
 one `task_checksum`, lane pre-registered as the first five by `started_at`. Each run is classified with
 `python3 tools/triage_trials.py <job_dir>` (repository root), which names the reading its deliverables match
-(GOLD or W1-W17) and lists the rows it got wrong. The table layout to fill in:
+(GOLD or W1-W18) and lists the rows it got wrong. The table layout to fill in:
 
 | started (UTC) | trial | reward | slot | checks | what happened |
 |---|---|---|---|---|---|
@@ -256,8 +266,11 @@ one `task_checksum`, lane pre-registered as the first five by `started_at`. Each
   `position` column and a `note` ("the rest of the scene; runs straight on"). GLM solved it 5/5 (job
   `b52a9-glm5x-run6`, 20 min): one run's first note on the ledger was "some are duplicates (stretches of the
   same passage)"; one wrote a regex classifier for the decisions and cross-checked it against a manual pass.
-- **v7, current:** the same two-stretch passage with nothing pointing at it (no note, no position column;
-  `draft_line` orders the flags), a helper sheet that lists it twice, and the reference's leads.
+- **v7:** the same two-stretch passage with nothing pointing at it (no note, no position column; `draft_line`
+  orders the flags), a helper sheet that lists it twice, and the reference's leads. GLM solved it 5/5 (job
+  `b52a9-glm5x-run7`, 16 min).
+- **v8, current:** the decisions move from a Log sheet into a 19-message mail thread that quotes its full
+  history; the `Not in` sheet is dropped so nothing confirms the extraction.
 
 ## 9. Isolation proof
 

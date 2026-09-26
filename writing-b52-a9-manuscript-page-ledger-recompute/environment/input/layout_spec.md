@@ -13,8 +13,9 @@ the one before it ends. A passage's page is the page its first line falls on.
 
 ## How the edit register is kept
 
-`edit_register.xlsx` records every decision on every edit on its `Log` sheet, and its
-`About` sheet says how the log is kept and what the calls mean.
+`edit_register.xlsx` lists every edit on its `Edits` sheet; the decisions on them are in
+`edit_thread.txt`, the mail between the two readers. The register's `About` sheet says
+how the thread is read and what the calls mean.
 
 ## How long a passage is
 
